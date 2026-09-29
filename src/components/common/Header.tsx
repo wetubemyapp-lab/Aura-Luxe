@@ -38,8 +38,17 @@ export const Header: React.FC<HeaderProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
-  const businessName = activeBusiness?.name || 'Aura Luxe';
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const businessName = activeBusiness?.name || 'Aura Luxe Salon';
   const tagline = language === 'hi' ? (activeBusiness?.tagline_hi || activeBusiness?.tagline) : activeBusiness?.tagline;
 
   const toggleLanguage = () => {
@@ -47,7 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 glass-nav border-b border-[#E4DED6]/80">
+    <header className={`sticky top-0 z-40 transition-all duration-300 ${scrolled ? 'glass-nav shadow-lg' : 'glass-nav-transparent'}`}>
       {/* Top Universal Engine Announcement & Tenant Switcher Bar */}
       <div className="bg-[#1E2433] text-slate-300 text-xs py-1.5 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -110,11 +119,15 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Language toggle */}
             <button
               onClick={toggleLanguage}
-              className="flex items-center gap-1 text-[11px] hover:text-[#FAF8F5] transition-colors py-0.5 px-2 rounded bg-white/5 hover:bg-white/10"
+              className="flex items-center gap-1.5 text-[11px] hover:text-[#FAF8F5] transition-all py-1 px-3 rounded-full bg-white/5 hover:bg-white/10 border border-slate-700/50"
               title="Change Language"
             >
-              <Globe className="w-3 h-3 text-[#D66A78]" />
-              <span className="font-medium">{language === 'en' ? 'हिन्दी' : 'English'}</span>
+              <Globe className="w-3.5 h-3.5 text-[#D66A78] shrink-0" />
+              <span className="font-semibold text-[10px] tracking-wider flex items-center">
+                <span className={language === 'en' ? 'text-[#D66A78] font-bold' : 'text-slate-400 font-medium'}>EN</span>
+                <span className="mx-1 text-slate-500">|</span>
+                <span className={language === 'hi' ? 'text-[#D66A78] font-bold' : 'text-slate-400 font-medium'}>हिन्दी</span>
+              </span>
             </button>
 
             {/* Quick Switch to Admin OS */}
@@ -221,7 +234,7 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'text-[#566176] hover:text-[#1E2433] hover:bg-black/5'
             }`}
           >
-            Showcase
+            Photos & Videos
           </button>
           <button
             onClick={() => onSelectTab('contact')}
@@ -231,7 +244,7 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'text-[#566176] hover:text-[#1E2433] hover:bg-black/5'
             }`}
           >
-            Contact & FAQs
+            Contact & Help
           </button>
 
           {/* Optional Modules */}
@@ -242,7 +255,7 @@ export const Header: React.FC<HeaderProps> = ({
                 currentTab === 'home-service' ? 'ring-1 ring-emerald-400' : ''
               }`}
             >
-              Doorstep
+              Home Service
             </button>
           )}
         </nav>
@@ -329,9 +342,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex md:hidden items-center gap-2">
           <button
             onClick={toggleLanguage}
-            className="p-1.5 rounded-lg border border-[#E2DBD0] text-[#1E2433] text-xs font-medium"
+            className="px-2 py-1 rounded-lg border border-[#E2DBD0] text-[#1E2433] text-[10px] font-bold tracking-wider"
           >
-            {language === 'en' ? 'हिन्दी' : 'EN'}
+            <span className={language === 'en' ? 'text-[#D66A78]' : 'text-slate-400'}>EN</span> | <span className={language === 'hi' ? 'text-[#D66A78]' : 'text-slate-400'}>हिन्दी</span>
           </button>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

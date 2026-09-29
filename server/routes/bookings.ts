@@ -866,6 +866,34 @@ bookingsRouter.put('/:id/status', requireBusinessStaff, async (req: Authenticate
   }
 });
 
+// Uncomplete / Revert Completion Endpoint
+bookingsRouter.post('/:id/uncomplete', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const result = await pg.query<any>(
+      `UPDATE bookings SET status = 'CONFIRMED', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+    const updated = result.rows[0];
+
+    await logAuditEvent({
+      business_id: updated.business_id,
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      user_role: req.user!.role,
+      action: 'BOOKING_UNCOMPLETED',
+      entity_type: 'booking',
+      entity_id: parseInt(id),
+    });
+
+    return res.json({ booking: updated, message: 'Booking reverted from completed to confirmed (Uncompleted).' });
+  } catch (error: any) {
+    console.error('Uncomplete booking error:', error);
+    return res.status(500).json({ error: 'Failed to uncomplete booking' });
+  }
+});
+
 // Archive / Soft Delete a booking
 bookingsRouter.patch('/:id/archive', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
@@ -892,28 +920,170 @@ bookingsRouter.patch('/:id/archive', requireBusinessStaff, async (req: Authentic
   }
 });
 
-// Restore an archived booking
-bookingsRouter.patch('/:id/restore', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+// Rescheduling Engine (Section 28)
+bookingsRouter.post('/:id/reschedule', async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const result = await pg.query<any>(
-      `UPDATE bookings SET is_archived = FALSE, deleted_at = NULL WHERE id = $1 RETURNING *`,
-      [id]
+    const { new_date, new_time, staff_id, force_confirm = false } = req.body;
+
+    if (!new_date || !new_time) {
+      return res.status(400).json({ error: 'new_date and new_time are required for rescheduling' });
+    }
+
+    const bookingRes = await pg.query<any>('SELECT * FROM bookings WHERE id = $1', [id]);
+    if (bookingRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    const booking = bookingRes.rows[0];
+
+    // Check cancellation/reschedule policy (e.g. within 2 hours of booking)
+    const scheduledDateTime = new Date(`${booking.booking_date.toString().slice(0, 10)}T${booking.booking_time || '10:00'}:00`);
+    const hoursNotice = (scheduledDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+
+    if (hoursNotice < 1 && booking.status === 'CONFIRMED' && !force_confirm && req.user?.role === 'customer') {
+      return res.status(400).json({
+        error: 'Rescheduling is restricted within 1 hour of appointment time. Please contact venue staff directly.',
+        restricted: true,
+      });
+    }
+
+    const targetStaffId = staff_id || booking.staff_id;
+
+    // Re-check staff scheduling conflict
+    if (targetStaffId) {
+      const conflictRes = await pg.query<any>(
+        `SELECT id FROM bookings
+         WHERE staff_id = $1 AND booking_date = $2 AND booking_time = $3 AND id != $4 AND status NOT IN ('CANCELLED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_OWNER', 'REFUNDED')`,
+        [targetStaffId, new_date, new_time, booking.id]
+      );
+      if (conflictRes.rows.length > 0 && !force_confirm) {
+        return res.status(400).json({
+          error: `Selected staff specialist is already booked at ${new_time} on ${new_date}. Please choose another time slot.`,
+          conflict: true,
+        });
+      }
+    }
+
+    // Price difference calculation (e.g. weekend premium or peak hours)
+    let priceDifference = 0;
+    const isWeekend = new Date(new_date).getDay() === 0 || new Date(new_date).getDay() === 6;
+    const oldTotal = parseFloat(booking.total_amount || 0);
+    let newTotal = oldTotal;
+
+    if (isWeekend && booking.booking_mode === 'online') {
+      // 5% weekend surcharge preview
+      newTotal = parseFloat((oldTotal * 1.05).toFixed(2));
+      priceDifference = parseFloat((newTotal - oldTotal).toFixed(2));
+    }
+
+    // Update booking
+    const updatedRes = await pg.query<any>(
+      `UPDATE bookings
+       SET booking_date = $1,
+           booking_time = $2,
+           staff_id = COALESCE($3, staff_id),
+           total_amount = $4,
+           venue_balance_due = $5,
+           status = 'CONFIRMED',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6
+       RETURNING *`,
+      [
+        new_date,
+        new_time,
+        targetStaffId || null,
+        newTotal,
+        Math.max(0, newTotal - parseFloat(booking.advance_amount_paid || 0)),
+        booking.id,
+      ]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+
+    const updatedBooking = updatedRes.rows[0];
 
     await logAuditEvent({
-      business_id: (result.rows[0] as any).business_id,
-      user_id: req.user!.id,
-      user_name: req.user!.name,
-      user_role: req.user!.role,
-      action: 'BOOKING_RESTORED',
+      business_id: booking.business_id,
+      user_id: req.user?.id || 1,
+      user_name: req.user?.name || 'Customer/Staff',
+      user_role: req.user?.role || 'customer',
+      action: 'BOOKING_RESCHEDULED',
       entity_type: 'booking',
-      entity_id: parseInt(id),
+      entity_id: booking.id,
+      details: { old_date: booking.booking_date, new_date, old_time: booking.booking_time, new_time, priceDifference },
     });
 
-    return res.json({ message: 'Booking restored successfully' });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to restore booking' });
+    return res.json({
+      success: true,
+      message: `Appointment successfully rescheduled to ${new_date} @ ${new_time}!`,
+      booking: updatedBooking,
+      price_difference: priceDifference,
+    });
+  } catch (error: any) {
+    console.error('Reschedule error:', error);
+    return res.status(500).json({ error: 'Failed to reschedule booking' });
+  }
+});
+
+// QR Code Scan & Check-In Validation Engine (Section 26)
+bookingsRouter.post('/qr-checkin', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { booking_id, qr_data } = req.body;
+    const targetId = booking_id || (qr_data ? parseInt(qr_data.replace(/\D/g, '')) : null);
+
+    if (!targetId) {
+      return res.status(400).json({ error: 'Valid booking ID or scanned QR payload required' });
+    }
+
+    const bookingRes = await pg.query<any>('SELECT * FROM bookings WHERE id = $1', [targetId]);
+    if (bookingRes.rows.length === 0) {
+      return res.status(404).json({ error: `No active reservation found matching QR Code #${targetId}` });
+    }
+    const booking = bookingRes.rows[0];
+
+    // Check if already checked in to prevent reusing QR Code
+    if (booking.checked_in_at || booking.status === 'CHECKED_IN' || booking.status === 'IN_SERVICE' || booking.status === 'COMPLETED') {
+      return res.status(400).json({
+        error: `QR Code Already Used! Booking #${booking.id} was checked-in on ${booking.checked_in_at ? new Date(booking.checked_in_at).toLocaleTimeString() : 'earlier'} by ${booking.checked_in_by || 'Staff'}.`,
+        already_checked_in: true,
+        booking,
+      });
+    }
+
+    // Verify status valid for check-in
+    if (booking.status === 'CANCELLED' || booking.status === 'CANCELLED_BY_CUSTOMER' || booking.status === 'CANCELLED_BY_OWNER' || booking.status === 'REFUNDED') {
+      return res.status(400).json({ error: `Cannot check-in. Booking #${booking.id} has been cancelled.` });
+    }
+
+    // Perform Check-In
+    const staffName = req.user?.name || 'Reception Staff';
+    const updatedRes = await pg.query<any>(
+      `UPDATE bookings
+       SET status = 'CHECKED_IN',
+           checked_in_at = CURRENT_TIMESTAMP,
+           checked_in_by = $1
+       WHERE id = $2
+       RETURNING *`,
+      [staffName, booking.id]
+    );
+    const updatedBooking = updatedRes.rows[0];
+
+    await logAuditEvent({
+      business_id: booking.business_id,
+      user_id: req.user!.id,
+      user_name: staffName,
+      user_role: req.user!.role,
+      action: 'QR_CHECKIN_PERFORMED',
+      entity_type: 'booking',
+      entity_id: booking.id,
+      details: { checked_in_at: new Date().toISOString(), checked_in_by: staffName },
+    });
+
+    return res.json({
+      success: true,
+      message: `✅ Customer ${booking.customer_name || 'Guest'} checked-in successfully for Booking #${booking.id}!`,
+      booking: updatedBooking,
+    });
+  } catch (error: any) {
+    console.error('QR Checkin error:', error);
+    return res.status(500).json({ error: 'Failed to process QR check-in' });
   }
 });

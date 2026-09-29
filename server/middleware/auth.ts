@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { Permission, PlatformRole } from '../../src/types/index.ts';
+import { hasPermission } from '../utils/permissions.ts';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'aura-luxe-secret-key-2026-production';
 
@@ -72,4 +74,16 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
 
 export function requireBusinessStaff(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   requireRoles(['owner', 'admin', 'branch_manager', 'receptionist', 'staff'])(req, res, next);
+}
+
+export function authorize(permission: Permission) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    requireAuth(req, res, () => {
+      const userRole = req.user?.role;
+      if (userRole && hasPermission(userRole, permission)) {
+        return next();
+      }
+      return res.status(403).json({ error: `Forbidden: Requires permission ${permission}` });
+    });
+  };
 }

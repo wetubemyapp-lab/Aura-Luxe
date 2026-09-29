@@ -13,7 +13,7 @@ const translations: Translations = {
   // Navigation
   website: { en: 'Website', hi: 'वेबसाइट' },
   services: { en: 'Services', hi: 'सेवाएं' },
-  booking: { en: 'Book Now', hi: 'बुकिंग' },
+  booking: { en: 'Book Now', hi: 'बुकिंग करें' },
   my_bookings: { en: 'My Bookings', hi: 'मेरी बुकिंग्स' },
   admin_portal: { en: 'Admin OS', hi: 'एडमिन ओएस' },
   customer_portal: { en: 'Customer Portal', hi: 'ग्राहक पोर्टल' },
@@ -38,6 +38,49 @@ const translations: Translations = {
   role_customer: { en: 'Customer', hi: 'ग्राहक' },
   role_admin: { en: 'Admin / Owner', hi: 'मालिक / एडमिन' },
   quick_demo_login: { en: 'Demo Quick Access', hi: 'त्वरित डेमो एक्सेस' },
+
+  // Buttons & Forms
+  book_now: { en: 'Book Now', hi: 'अभी बुक करें' },
+  submit: { en: 'Submit Details', hi: 'विवरण जमा करें' },
+  save: { en: 'Save Details', hi: 'विवरण सुरक्षित करें' },
+  select_outlet: { en: 'Select Outlet', hi: 'आउटलेट चुनें' },
+  select_service: { en: 'Select Service', hi: 'सेवा चुनें' },
+  select_staff: { en: 'Select Stylist', hi: 'स्टाइलिस्ट चुनें' },
+  select_date_time: { en: 'Select Date & Time', hi: 'तारीख और समय चुनें' },
+  full_name: { en: 'Full Name', hi: 'पूरा नाम' },
+  phone_number: { en: 'Phone Number', hi: 'फ़ोन नंबर' },
+  email_address: { en: 'Email Address', hi: 'ईमेल पता' },
+  special_notes: { en: 'Special Instructions', hi: 'विशेष निर्देश' },
+
+  // Form Validation & Errors
+  name_required: { en: 'Full Name is required', hi: 'पूरा नाम देना अनिवार्य है' },
+  phone_invalid: { en: 'Please enter a valid 10-digit phone number', hi: 'कृपया सही 10-अंकों का फ़ोन नंबर दर्ज करें' },
+  email_required: { en: 'Email address is required', hi: 'ईमेल पता देना अनिवार्य है' },
+  slot_required: { en: 'Please select an appointment time slot', hi: 'कृपया अपॉइंटमेंट के लिए समय चुनें' },
+  validation_error: { en: 'Please fix the errors before proceeding', hi: 'कृपया आगे बढ़ने से पहले त्रुटियों को ठीक करें' },
+
+  // System & Dynamic Fallbacks
+  loading: { en: 'Loading...', hi: 'लोड हो रहा है...' },
+  no_slots: { en: 'No available slots on this day. Please choose another date.', hi: 'इस दिन कोई समय उपलब्ध नहीं है। कृपया दूसरी तारीख चुनें।' },
+  booking_success: { en: 'Your appointment has been successfully booked!', hi: 'आपका अपॉइंटमेंट सफलतापूर्वक बुक हो गया है!' },
+  booking_failed: { en: 'Failed to book appointment. Please try again.', hi: 'अपॉइंटमेंट बुक करने में विफल। कृपया पुन: प्रयास करें।' },
+
+  // Dashboard & Profile
+  welcome_back: { en: 'Welcome back', hi: 'आपका स्वागत है' },
+  upcoming_appointments: { en: 'Upcoming Appointments', hi: 'आगामी अपॉइंटमेंट्स' },
+  past_history: { en: 'Booking History', hi: 'पिछला इतिहास' },
+  no_bookings: { en: 'No active reservations found.', hi: 'कोई सक्रिय बुकिंग नहीं मिली।' },
+  member_since: { en: 'Member since', hi: 'सदस्यता तिथि' },
+
+  // Policies
+  cancellation_policy: { en: 'Cancellation Policy', hi: 'रद्द करने की नीति' },
+  terms_conditions: { en: 'Terms & Conditions', hi: 'नियम और शर्तें' },
+  privacy_policy: { en: 'Privacy Policy', hi: 'गोपनीयता नीति' },
+
+  // Offers Labels
+  festive_special: { en: 'Festive Special Offer', hi: 'त्योहार विशेष ऑफर' },
+  limited_time: { en: 'Limited Period Offer', hi: 'सीमित समय का ऑफर' },
+  coupon_applied: { en: 'Coupon Applied Successfully', hi: 'कूपन सफलतापूर्वक लागू किया गया' },
 
   // Common UI
   about_us: { en: 'About Our Business', hi: 'हमारे बारे में' },

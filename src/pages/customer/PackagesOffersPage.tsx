@@ -140,7 +140,7 @@ export const PackagesOffersPage: React.FC<PackagesOffersPageProps> = ({
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Badge variant="accent" size="xs">Bundled Ritual</Badge>
+                      <Badge variant="accent" size="xs">Combo Package</Badge>
                       {pkg.original_price && (
                         <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
                           Save {currency}{Number(pkg.original_price) - Number(pkg.price)}

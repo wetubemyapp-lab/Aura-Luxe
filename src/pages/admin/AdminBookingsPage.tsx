@@ -4,6 +4,8 @@ import { useBusiness } from '../../context/BusinessContext.tsx';
 import { useLanguage } from '../../context/LanguageContext.tsx';
 import { BookingItem, ServiceItem, StaffItem } from '../../types/index.ts';
 import { CheckoutModal } from '../../components/admin/CheckoutModal.tsx';
+import { WalkInPosModal } from '../../components/admin/WalkInPosModal.tsx';
+import { QrCodeModal } from '../../components/common/QrCodeModal.tsx';
 import {
   CalendarCheck,
   Phone,
@@ -24,6 +26,8 @@ import {
   Filter,
   UserPlus,
   Loader2,
+  QrCode,
+  ScanLine
 } from 'lucide-react';
 
 export const AdminBookingsPage: React.FC = () => {
@@ -39,8 +43,9 @@ export const AdminBookingsPage: React.FC = () => {
   const [selectedBookingForCheckout, setSelectedBookingForCheckout] = useState<BookingItem | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  // Walk-in modal state
+  // Walk-in & QR Scan modal state
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [servicesList, setServicesList] = useState<ServiceItem[]>([]);
   const [staffList, setStaffList] = useState<StaffItem[]>([]);
   const [walkInName, setWalkInName] = useState('');
@@ -152,6 +157,26 @@ export const AdminBookingsPage: React.FC = () => {
     }
   };
 
+  const handleUncomplete = async (id: number) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/bookings/${id}/uncomplete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        await fetchBookings();
+      }
+    } catch (err) {
+      console.error('Failed to uncomplete booking:', err);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleCreateWalkIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!walkInName || walkInServiceIds.length === 0) return;
@@ -210,11 +235,19 @@ export const AdminBookingsPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setIsQrScannerOpen(true)}
+            className="px-4 py-2.5 rounded-xl bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
+          >
+            <ScanLine className="w-4 h-4 text-[#E07A5F]" />
+            <span>Scan QR Check-In</span>
+          </button>
+
+          <button
             onClick={() => setIsWalkInOpen(true)}
             className="px-4 py-2.5 rounded-xl bg-[#E07A5F] hover:bg-[#D47055] text-white text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
           >
             <UserPlus className="w-4 h-4" />
-            {language === 'hi' ? '+ वॉक-इन ग्राहक' : '+ New Walk-In'}
+            {language === 'hi' ? '+ वॉक-इन ग्राहक' : '+ BLOCK SLOT / WALK-IN'}
           </button>
         </div>
       </div>
@@ -401,6 +434,16 @@ export const AdminBookingsPage: React.FC = () => {
                       </button>
                     )}
 
+                    {booking.status === 'completed' && (
+                      <button
+                        onClick={() => handleUncomplete(booking.id)}
+                        disabled={updatingId === booking.id}
+                        className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 font-semibold text-xs transition-colors"
+                      >
+                        {updatingId === booking.id ? 'Reverting...' : 'Uncomplete / Revert'}
+                      </button>
+                    )}
+
                     {booking.status !== 'completed' && booking.status !== 'cancelled' && (
                       <button
                         onClick={() => handleUpdateStatus(booking.id, 'cancelled')}
@@ -573,6 +616,26 @@ export const AdminBookingsPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Walk-In POS Creation Modal */}
+      <WalkInPosModal
+        isOpen={isWalkInOpen}
+        onClose={() => setIsWalkInOpen(false)}
+        onSuccess={() => {
+          setIsWalkInOpen(false);
+          fetchBookings();
+        }}
+      />
+
+      {/* QR Code Scanner & Check-In Modal */}
+      <QrCodeModal
+        booking={null}
+        mode="scan"
+        onClose={() => setIsQrScannerOpen(false)}
+        onCheckinSuccess={() => {
+          setIsQrScannerOpen(false);
+          fetchBookings();
+        }}
+      />
     </div>
   );
 };

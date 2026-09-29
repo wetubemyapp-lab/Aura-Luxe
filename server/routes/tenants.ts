@@ -66,6 +66,10 @@ tenantsRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: R
       deposit_percentage,
       advance_payment_percentage,
       home_service_travel_fee,
+      cancel_policy_hours_threshold,
+      cancel_policy_full_refund_pct,
+      cancel_policy_late_refund_pct,
+      noshow_refund_pct,
       features_config,
     } = req.body;
 
@@ -92,9 +96,13 @@ tenantsRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: R
            deposit_percentage = COALESCE($19, deposit_percentage),
            advance_payment_percentage = COALESCE($20, advance_payment_percentage),
            home_service_travel_fee = COALESCE($21, home_service_travel_fee),
-           features_config = COALESCE($22, features_config),
+           cancel_policy_hours_threshold = COALESCE($22, cancel_policy_hours_threshold),
+           cancel_policy_full_refund_pct = COALESCE($23, cancel_policy_full_refund_pct),
+           cancel_policy_late_refund_pct = COALESCE($24, cancel_policy_late_refund_pct),
+           noshow_refund_pct = COALESCE($25, noshow_refund_pct),
+           features_config = COALESCE($26, features_config),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $23
+       WHERE id = $27
        RETURNING *`,
       [
         name,
@@ -118,6 +126,10 @@ tenantsRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: R
         deposit_percentage,
         advance_payment_percentage,
         home_service_travel_fee,
+        cancel_policy_hours_threshold,
+        cancel_policy_full_refund_pct,
+        cancel_policy_late_refund_pct,
+        noshow_refund_pct,
         typeof features_config === 'object' ? JSON.stringify(features_config) : features_config,
         id,
       ]

@@ -19,8 +19,8 @@ export const LegalPolicyPage: React.FC<LegalPolicyPageProps> = ({
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const businessName = activeBusiness?.name || 'Aura Luxe Atelier';
-  const cancellationPolicy = activeBranch?.cancellation_policy || 'Free cancellation and full advance deposit credit are honored up to 4 hours prior to your scheduled service slot. Cancellations within 4 hours or no-shows forfeit the advance deposit to compensate the allocated practitioner.';
+  const businessName = activeBusiness?.name || 'Aura Luxe Salon';
+  const cancellationPolicy = activeBranch?.cancellation_policy || 'Free cancellation and full refund of advance amount is given if you cancel up to 4 hours before your booking time. If you cancel within 4 hours or do not show up, the advance amount will be kept to pay the stylist.';
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 space-y-8 animate-fade-in">

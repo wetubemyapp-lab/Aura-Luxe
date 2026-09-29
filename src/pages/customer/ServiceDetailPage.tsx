@@ -132,7 +132,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
           </div>
 
           <div className="space-y-3 pt-2 border-t border-[#EAE5DF]">
-            <h3 className="font-serif font-bold text-sm text-[#1E2433]">Ritual Description</h3>
+            <h3 className="font-serif font-bold text-sm text-[#1E2433]">Service Description</h3>
             <p className="text-xs sm:text-sm text-[#566176] leading-relaxed">
               {language === 'hi' && service.description_hi ? service.description_hi : service.description}
             </p>
@@ -141,7 +141,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
           {/* Add-ons if available */}
           {addons.length > 0 && (
             <div className="space-y-3 pt-2 border-t border-[#EAE5DF]">
-              <h3 className="font-serif font-bold text-sm text-[#1E2433]">Recommended Add-On Rituals</h3>
+              <h3 className="font-serif font-bold text-sm text-[#1E2433]">Recommended Add-On Services</h3>
               <div className="space-y-2">
                 {addons.map((add) => (
                   <div key={add.id} className="p-3 rounded-2xl bg-white border border-[#EAE5DF] flex items-center justify-between text-xs">
@@ -169,7 +169,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = ({
               onClick={() => onBookService(service.id)}
               rightIcon={<Calendar className="w-4 h-4" />}
             >
-              Reserve This Ritual ({currency}{service.price})
+              Book This Service ({currency}{service.price})
             </Button>
           </div>
         </div>

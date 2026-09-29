@@ -169,6 +169,9 @@ export interface ServiceItem {
   is_archived?: boolean;
 }
 
+export type Service = ServiceItem;
+export type StaffMember = StaffItem;
+
 export interface ServiceAddon {
   id: number;
   business_id: number;
@@ -249,6 +252,10 @@ export interface GalleryItem {
   title: string;
   category: string;
   image_url: string;
+  description?: string;
+  sort_order?: number;
+  is_featured?: boolean;
+  is_active?: boolean;
   is_archived?: boolean;
 }
 
@@ -256,9 +263,14 @@ export interface VideoItem {
   id: number;
   business_id?: number;
   title: string;
+  description?: string;
   video_url: string;
   thumbnail_url?: string;
+  is_featured?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
   is_archived?: boolean;
+  created_at?: string;
 }
 
 export interface ReviewItem {
@@ -266,9 +278,22 @@ export interface ReviewItem {
   business_id?: number;
   user_name: string;
   rating: number;
+  title?: string;
   comment: string;
+  images?: string;
+  service_id?: number;
+  staff_id?: number;
+  booking_id?: number;
+  owner_reply?: string;
+  is_hidden?: boolean;
+  is_reported?: boolean;
+  report_reason?: string;
+  is_removed?: boolean;
+  removal_reason?: string;
   is_verified: boolean;
   created_at?: string;
+  service_title?: string;
+  staff_name?: string;
 }
 
 export interface BookingSubItem {
@@ -295,8 +320,8 @@ export interface BookingItem {
   booking_date: string;
   booking_time: string;
   duration_mins: number;
-  status: 'pending' | 'confirmed' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
-  payment_status: 'unpaid' | 'deposit_paid' | 'paid' | 'refunded';
+  status: string;
+  payment_status: string;
   payment_option: 'full_online' | 'advance_online' | 'pay_at_venue';
   service_amount: string | number;
   addons_amount: string | number;
@@ -317,6 +342,9 @@ export interface BookingItem {
   customer_name?: string;
   customer_email?: string;
   customer_phone?: string;
+  checked_in_at?: string;
+  checked_in_by?: string;
+  googleMapsUrl?: string;
   items?: BookingSubItem[];
   service_titles?: string[];
   whatsapp_url?: string;
@@ -405,20 +433,33 @@ export type CustomerPageTab =
   | 'website'
   | 'booking';
 
+export type Permission =
+  | 'booking.read' | 'booking.create' | 'booking.update' | 'booking.cancel'
+  | 'payment.read' | 'refund.create'
+  | 'staff.read' | 'staff.manage'
+  | 'service.manage'
+  | 'offer.manage' | 'coupon.manage'
+  | 'review.manage'
+  | 'analytics.read'
+  | 'website.manage';
+
 export type AdminPageTab =
   | 'dashboard'
-  | 'website-mgmt'
-  | 'branches'
+  | 'calendar'
+  | 'bookings'
+  | 'customers'
   | 'services'
-  | 'staff'
   | 'packages'
+  | 'staff'
   | 'offers'
   | 'coupons'
   | 'gallery'
   | 'videos'
   | 'reviews'
-  | 'bookings'
-  | 'ledger'
+  | 'payments'
+  | 'reports'
+  | 'website'
   | 'ai-copilot'
+  | 'notifications'
   | 'audit-logs'
   | 'settings';

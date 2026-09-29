@@ -31,6 +31,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button, Badge } from '../../components/ui/index.ts';
+import marbleOrchidImg from '../../assets/images/marble_orchid_calendar_1790692292750.jpg';
 
 interface BookingPageProps {
   initialServiceId?: number;
@@ -563,14 +564,33 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   // ---------------- PROGRESSIVE BOOKING STEPPER ----------------
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+      {/* Section 5: Minimalist Marble + Orchid + Calendar Hero Banner */}
+      <div className="relative h-48 sm:h-64 rounded-3xl overflow-hidden shadow-xl border border-[#EAE5DF] bg-stone-100">
+        <img
+          src={marbleOrchidImg}
+          alt="Minimalist Marble & Orchid Calendar"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-8 text-white">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-amber-300 text-xs font-bold uppercase tracking-wider mb-2 w-fit border border-white/30">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Luxury Appointment Studio</span>
+          </div>
+          <h1 className="text-2xl sm:text-4xl font-serif font-bold">Book Your Appointment</h1>
+          <p className="text-xs sm:text-sm text-stone-200 mt-1">
+            Experience effortless, high-end booking across our premier spaces.
+          </p>
+        </div>
+      </div>
+
       {/* Title */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF4EB] text-[#C89B53] text-xs font-semibold uppercase tracking-wider">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Universal Progressive Stepper</span>
+          <span>Simple Booking Steps</span>
         </div>
         <h1 className="text-2xl sm:text-4xl font-serif font-bold text-[#1E2433]">
-          Reserve Your Ritual
+          Book Your Appointment
         </h1>
         <p className="text-[#566176] text-xs sm:text-sm">
           Step {currentStep} of 7: {stepsList[currentStep - 1]?.label}
@@ -753,7 +773,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
 
                           <div className="flex-1 min-w-0 space-y-1">
                             <div className="flex items-center justify-between gap-2">
-                              <Badge variant="gold" size="xs">Bundled Ritual Package</Badge>
+                              <Badge variant="gold" size="xs">Combo Package</Badge>
                               <div className="flex items-baseline gap-1.5 font-mono">
                                 {pkg.original_price && (
                                   <span className="text-xs text-[#8491A5] line-through">
@@ -1039,7 +1059,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
               >
                 <Building2 className="w-5 h-5 text-[#D66A78] mb-1.5" />
                 <h3 className="font-bold text-[#1E2433] text-xs">At Studio Outlet</h3>
-                <p className="text-[11px] text-[#566176]">Visit our luxury atelier location</p>
+                <p className="text-[11px] text-[#566176]">Visit our luxury salon branch</p>
               </button>
 
               <button

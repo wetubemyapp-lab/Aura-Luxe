@@ -13,11 +13,13 @@ export const pg = new PGlite(DB_DIR);
 export async function initDatabase() {
   console.log('Initializing Universal Business Platform OS Database...');
 
-  // 1. Multi-Tenant Business Configuration Table
-  await pg.exec(`
-    CREATE TABLE IF NOT EXISTS businesses (
-      id SERIAL PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,
+  // Load new core schema
+  const schemaPath = path.resolve(process.cwd(), 'server/db/schema.sql');
+  const schema = fs.readFileSync(schemaPath, 'utf8');
+  await pg.exec(schema);
+
+  // Keep existing migrations/seeders (legacy tables)
+  // ... (keep existing init code)
       name TEXT NOT NULL,
       category TEXT NOT NULL,
       tagline TEXT,
@@ -37,6 +39,13 @@ export async function initDatabase() {
       buffer_time_mins INTEGER DEFAULT 15,
       deposit_required BOOLEAN DEFAULT FALSE,
       deposit_percentage NUMERIC(5,2) DEFAULT 20.00,
+      advance_payment_percentage NUMERIC(5,2) DEFAULT 20.00,
+      home_service_travel_fee NUMERIC(10,2) DEFAULT 150.00,
+      allow_home_service BOOLEAN DEFAULT TRUE,
+      cancel_policy_hours_threshold INTEGER DEFAULT 24,
+      cancel_policy_full_refund_pct NUMERIC(5,2) DEFAULT 100.00,
+      cancel_policy_late_refund_pct NUMERIC(5,2) DEFAULT 50.00,
+      noshow_refund_pct NUMERIC(5,2) DEFAULT 0.00,
       platform_fee_pct NUMERIC(5,2) DEFAULT 2.50,
       features_config JSONB DEFAULT '{"allowAddons":true,"requireDeposit":false,"showStaffSelection":true,"enableCoupons":true,"enablePackages":true}'::jsonb,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -83,10 +92,16 @@ export async function initDatabase() {
       description TEXT,
       description_hi TEXT,
       price NUMERIC(10,2) NOT NULL,
+      discount_price NUMERIC(10,2),
+      travel_fee NUMERIC(10,2) DEFAULT 0,
       duration_mins INTEGER NOT NULL DEFAULT 45,
       buffer_mins INTEGER NOT NULL DEFAULT 10,
       image_url TEXT,
+      video_url TEXT,
+      is_popular BOOLEAN DEFAULT FALSE,
+      is_featured BOOLEAN DEFAULT FALSE,
       is_active BOOLEAN DEFAULT TRUE,
+      is_archived BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -108,10 +123,19 @@ export async function initDatabase() {
       role_title TEXT NOT NULL,
       role_title_hi TEXT,
       bio TEXT,
+      experience TEXT,
+      skills TEXT,
+      phone TEXT,
+      email TEXT,
       image_url TEXT,
       specialties TEXT,
+      working_hours TEXT DEFAULT '09:00 - 18:00',
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE', 'ON_LEAVE', 'active', 'inactive', 'on_leave')),
+      home_service_enabled BOOLEAN DEFAULT TRUE,
+      online_booking_enabled BOOLEAN DEFAULT TRUE,
       commission_rate NUMERIC(5,2) DEFAULT 15.00,
       is_active BOOLEAN DEFAULT TRUE,
+      is_archived BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -120,10 +144,17 @@ export async function initDatabase() {
       business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       description TEXT,
-      price NUMERIC(10,2) NOT NULL,
-      original_price NUMERIC(10,2),
-      service_ids TEXT,
+      services TEXT,
+      duration TEXT DEFAULT '60 mins',
+      regular_price NUMERIC(10,2) NOT NULL,
+      package_price NUMERIC(10,2) NOT NULL,
+      discount TEXT DEFAULT '20%',
+      validity TEXT DEFAULT '30 Days',
+      usage_rules TEXT,
+      outlets TEXT DEFAULT 'All Outlets',
+      image_url TEXT,
       is_active BOOLEAN DEFAULT TRUE,
+      is_archived BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -177,8 +208,14 @@ export async function initDatabase() {
       id SERIAL PRIMARY KEY,
       business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
-      category TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'Photo',
+      service TEXT,
       image_url TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      is_featured BOOLEAN DEFAULT FALSE,
+      is_active BOOLEAN DEFAULT TRUE,
+      is_archived BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -230,6 +267,8 @@ export async function initDatabase() {
       customer_name TEXT,
       customer_phone TEXT,
       customer_email TEXT,
+      checked_in_at TIMESTAMP,
+      checked_in_by TEXT,
       is_archived BOOLEAN DEFAULT FALSE,
       deleted_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -258,6 +297,24 @@ export async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'INITIATED',
       raw_payload TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS refunds (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
+      booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      amount_paid NUMERIC(10,2) NOT NULL,
+      refund_amount NUMERIC(10,2) NOT NULL,
+      fee_deducted NUMERIC(10,2) DEFAULT 0,
+      reason TEXT,
+      policy_applied TEXT,
+      status TEXT NOT NULL DEFAULT 'REFUND_PENDING' CHECK (status IN ('REFUND_PENDING', 'REFUND_PROCESSING', 'REFUNDED', 'REFUND_FAILED', 'PARTIALLY_REFUNDED')),
+      gateway_refund_id TEXT,
+      gateway_response_json TEXT,
+      cancelled_by_role TEXT NOT NULL DEFAULT 'owner',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS booking_holds (
@@ -319,6 +376,22 @@ export async function initDatabase() {
       ip_address TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER,
+      booking_id INTEGER,
+      event_type TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      title TEXT,
+      message TEXT NOT NULL,
+      status TEXT DEFAULT 'SENT',
+      template_name TEXT,
+      template_params JSONB,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Safe migrations in case tables were created in earlier foundation
@@ -370,6 +443,16 @@ export async function initDatabase() {
       ALTER TABLE packages ADD COLUMN IF NOT EXISTS business_id INTEGER;
       ALTER TABLE packages ADD COLUMN IF NOT EXISTS original_price NUMERIC(10,2);
       ALTER TABLE packages ADD COLUMN IF NOT EXISTS service_ids TEXT;
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS services TEXT;
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS duration TEXT DEFAULT '60 mins';
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS regular_price NUMERIC(10,2);
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS package_price NUMERIC(10,2);
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS discount TEXT DEFAULT '20%';
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS validity TEXT DEFAULT '30 Days';
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS usage_rules TEXT;
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS outlets TEXT DEFAULT 'All Outlets';
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS image_url TEXT;
+      ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
       ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
       ALTER TABLE packages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
@@ -390,14 +473,35 @@ export async function initDatabase() {
       ALTER TABLE coupons ALTER COLUMN discount_amount DROP NOT NULL;
 
       ALTER TABLE gallery ADD COLUMN IF NOT EXISTS business_id INTEGER;
+      ALTER TABLE gallery ADD COLUMN IF NOT EXISTS description TEXT;
+      ALTER TABLE gallery ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Photo';
+      ALTER TABLE gallery ADD COLUMN IF NOT EXISTS service TEXT;
+      ALTER TABLE gallery ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+      ALTER TABLE gallery ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+      ALTER TABLE gallery ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
       ALTER TABLE gallery ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
       ALTER TABLE gallery ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
       ALTER TABLE videos ADD COLUMN IF NOT EXISTS business_id INTEGER;
+      ALTER TABLE videos ADD COLUMN IF NOT EXISTS description TEXT;
+      ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+      ALTER TABLE videos ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+      ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
       ALTER TABLE videos ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
       ALTER TABLE videos ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
       ALTER TABLE reviews ADD COLUMN IF NOT EXISTS business_id INTEGER;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS title TEXT;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS images TEXT;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS service_id INTEGER REFERENCES services(id) ON DELETE SET NULL;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS owner_reply TEXT;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_reported BOOLEAN DEFAULT FALSE;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS report_reason TEXT;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_removed BOOLEAN DEFAULT FALSE;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS removal_reason TEXT;
 
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS business_id INTEGER;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS branch_id INTEGER;

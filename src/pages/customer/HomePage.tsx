@@ -70,7 +70,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [activeVideoModal, setActiveVideoModal] = useState<VideoItem | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  const businessName = activeBusiness?.name || 'Aura Luxe Atelier';
+  const businessName = activeBusiness?.name || 'Aura Luxe Salon';
   const tagline = language === 'hi'
     ? (activeBusiness?.tagline_hi || activeBusiness?.tagline)
     : activeBusiness?.tagline || 'Experience personalized elegance, rejuvenating therapies, and master grooming.';
@@ -147,20 +147,20 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const faqs = [
     {
-      q: 'How does real-time slot reservation work?',
-      a: 'Our platform locks your chosen practitioner and time slot synchronously, guaranteeing zero double bookings and zero waiting room delays.',
+      q: 'How does real-time booking work?',
+      a: 'Our website books your chosen staff and time slot immediately, so there are no double bookings or long waiting times.',
     },
     {
-      q: 'Can I request doorstep home services?',
-      a: 'Yes, our mobile salon concierge operates within a 15km radius of our branches with complete sterile travel suites.',
+      q: 'Can I request home services?',
+      a: 'Yes, our mobile salon service operates within a 15km radius of our branches with fully clean and safe kits.',
     },
     {
-      q: 'What is the advance deposit requirement?',
-      a: 'We require a nominal 20% advance deposit at checkout to hold your practitioner. The remainder is paid at the studio counter.',
+      q: 'What is the advance payment?',
+      a: 'We ask for a small 20% advance payment during checkout to block your stylist. The rest you can pay at the salon counter.',
     },
     {
-      q: 'Are hygiene protocols certified?',
-      a: 'All instruments undergo medical autoclave sterilization sealed in single-use pouches opened right before your service.',
+      q: 'Are hygiene protocols safe?',
+      a: 'All our tools are fully sterilized and sealed in single-use pouches that we open right in front of you.',
     },
   ];
 
@@ -311,7 +311,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div>
             <Badge variant="accent" size="xs">Popular Services</Badge>
             <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E2433] mt-1">
-              Curated Rituals & Signature Services
+              Popular Services & Packages
             </h2>
           </div>
           <Button variant="outline" size="sm" onClick={onNavigateToServices}>
@@ -359,7 +359,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </div>
 
                 <Button variant="primary" size="sm" onClick={() => onNavigateToBooking(srv.id)}>
-                  Book Ritual
+                  Book Now
                 </Button>
               </div>
             </div>
@@ -419,7 +419,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="border-b border-[#EAE5DF] pb-4">
             <Badge variant="info" size="xs">Bundled Value</Badge>
             <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E2433] mt-1">
-              Signature Ritual Packages
+              Best Combo Packages
             </h2>
           </div>
 
@@ -506,12 +506,12 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { icon: UserCheck, title: 'Verified Specialists', desc: 'Master artisans with certified global credentials and ergonomic precision.' },
-            { icon: Calendar, title: 'Easy Synchronous Booking', desc: 'Real-time slot locking guarantees zero waiting room delays or double bookings.' },
-            { icon: Clock, title: 'Flexible Timing', desc: 'Extended operating hours and seamless self-service rescheduling.' },
-            { icon: Tag, title: 'Transparent Pricing', desc: 'Full itemized breakdowns with clear tax and advance deposit policies.' },
-            { icon: ShieldCheck, title: 'Hospital-Grade Hygiene', desc: 'Medical autoclave sterilization and single-use sealed tool kits.' },
-            { icon: Lock, title: 'Secure Payments', desc: 'PCI-DSS compliant gateways accepting Cash, POS Card, and UPI QR.' },
+            { icon: UserCheck, title: 'Expert Stylists & Staff', desc: 'Certified stylists who give you personal attention and high-quality results.' },
+            { icon: Calendar, title: 'Fast & Simple Booking', desc: 'Real-time booking blocks your slot immediately, so no waiting around or double booking.' },
+            { icon: Clock, title: 'Choose Your Time', desc: 'Open all days of the week, with quick self-service to change time or date.' },
+            { icon: Tag, title: 'Honest & Clear Prices', desc: 'Clean bills showing taxes and advance amounts openly.' },
+            { icon: ShieldCheck, title: '100% Clean & Sanitized', desc: 'All salon tools are fully sanitized and kept in single-use sealed kits.' },
+            { icon: Lock, title: 'Easy & Safe Payments', desc: 'Safe payments via Cash, Card swipe machines, and UPI GPay/PhonePe.' },
           ].map((benefit, i) => (
             <div key={i} className="glass-card rounded-3xl p-6 border border-[#EAE5DF] space-y-3 hover-lift">
               <div className="w-10 h-10 rounded-2xl bg-[#FAF4EB] text-[#C89B53] flex items-center justify-center border border-[#C89B53]/30">
@@ -566,7 +566,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="border-b border-[#EAE5DF] pb-4">
             <Badge variant="info" size="xs">Visual Portfolio</Badge>
             <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1E2433] mt-1">
-              Atelier Gallery
+              Salon Photos
             </h2>
           </div>
 

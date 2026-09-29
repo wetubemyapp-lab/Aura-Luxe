@@ -55,28 +55,71 @@
   }
 }
 
-/* Glassmorphism System - Subtle & Purposeful */
+/* Glassmorphism System */
 .glass-card {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 4px 20px -2px rgba(30, 36, 51, 0.04), 0 2px 6px -1px rgba(30, 36, 51, 0.02);
+  box-shadow: 0 10px 30px 0 rgba(31, 38, 135, 0.07);
 }
 
-.glass-card-warm {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(235, 229, 220, 0.85);
-  box-shadow: 0 4px 20px -2px rgba(30, 36, 51, 0.05), 0 2px 6px -1px rgba(30, 36, 51, 0.02);
+.glass-card-primary {
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.glass-card-secondary {
+  background: rgba(255, 255, 255, 0.30);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.glass-chip {
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .glass-nav {
-  background: rgba(250, 248, 245, 0.88);
+  background: rgba(250, 248, 245, 0.75);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(228, 222, 214, 0.75);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.40);
+  transition: all 0.3s ease;
+}
+
+.glass-nav-transparent {
+  background: rgba(250, 248, 245, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  transition: all 0.3s ease;
+}
+
+.glass-modal {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.80);
+}
+
+.glass-summary {
+  background: rgba(250, 248, 245, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+}
+
+.glass-dashboard {
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.50);
 }
 
 .glass-input {
@@ -93,45 +136,73 @@
   outline: none;
 }
 
-/* Card Hover Behaviour: slight translateY + slight scale with smooth transition */
-.card-hover, .hover-lift {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+/* Hover & Micro-Interactions System */
+.glass-card, .card-hover, .hover-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
 }
-.card-hover:hover, .hover-lift:hover {
-  transform: translateY(-2px) scale(1.01);
-  box-shadow: 0 12px 28px -4px rgba(30, 36, 51, 0.08), 0 4px 10px -2px rgba(30, 36, 51, 0.03);
+.glass-card:hover, .card-hover:hover, .hover-lift:hover {
+  transform: scale(1.03) translateY(-3px);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.12);
 }
 
-/* Logo hover: scale(1.05) */
 .logo-hover {
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .logo-hover:hover {
   transform: scale(1.05);
 }
 
-/* Primary Accent Button Styling */
-.btn-primary-accent {
-  background-color: #D66A78;
-  color: #FFFFFF;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+.img-zoom-container {
+  overflow: hidden;
 }
-.btn-primary-accent:hover {
-  background-color: #C55866;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px 0 rgba(214, 106, 120, 0.35);
+.img-zoom {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.img-zoom-container:hover .img-zoom {
+  transform: scale(1.08);
 }
 
-/* Soft Gold Accent Button Styling */
-.btn-gold-accent {
-  background-color: #C89B53;
-  color: #FFFFFF;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+.nav-underline {
+  position: relative;
 }
-.btn-gold-accent:hover {
-  background-color: #B88942;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px 0 rgba(200, 155, 83, 0.35);
+.nav-underline::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -4px;
+  left: 0;
+  background-color: #D66A78;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-underline:hover::after, .nav-underline.active::after {
+  width: 100%;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes fadeInScale {
+  0% { opacity: 0; transform: scale(0.96) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-modal-in {
+  animation: fadeInScale 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+button, .btn-primary-accent, .btn-gold-accent {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, opacity 0.2s ease;
+}
+button:hover:not(:disabled), .btn-primary-accent:hover, .btn-gold-accent:hover {
+  transform: translateY(-2px);
+}
+button:active:not(:disabled) {
+  transform: translateY(0px) scale(0.98);
 }
 
 

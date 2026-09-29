@@ -30,6 +30,8 @@ import {
   ShieldCheck,
   Bot,
   Activity,
+  MessageSquare,
+  Bell,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -118,19 +120,22 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const navItems: { id: AdminPageTab; labelEn: string; labelHi: string; icon: any }[] = [
     { id: 'dashboard', labelEn: 'Dashboard', labelHi: 'डैशबोर्ड', icon: LayoutDashboard },
-    { id: 'bookings', labelEn: 'Bookings & POS', labelHi: 'बुकिंग्स और पीओएस', icon: CalendarCheck },
-    { id: 'branches', labelEn: 'Branches & Outlets', labelHi: 'शाखाएं और आउटलेट', icon: Building2 },
-    { id: 'ledger', labelEn: 'Payment & Settlements', labelHi: 'वित्तीय लेजर', icon: Receipt },
+    { id: 'calendar', labelEn: 'Calendar', labelHi: 'कैलेंडर', icon: CalendarCheck },
+    { id: 'bookings', labelEn: 'Bookings', labelHi: 'बुकिंग्स', icon: CalendarCheck },
+    { id: 'customers', labelEn: 'Customers', labelHi: 'ग्राहक', icon: Users },
+    { id: 'services', labelEn: 'Services', labelHi: 'सेवाएं', icon: Scissors },
+    { id: 'packages', labelEn: 'Packages', labelHi: 'पैकेजेस', icon: Package },
+    { id: 'staff', labelEn: 'Staff', labelHi: 'स्टाफ', icon: Users },
+    { id: 'offers', labelEn: 'Offers', labelHi: 'ऑफर्स', icon: Sparkles },
+    { id: 'coupons', labelEn: 'Coupons', labelHi: 'कूपन', icon: Ticket },
+    { id: 'gallery', labelEn: 'Gallery', labelHi: 'गैलरी', icon: Image },
+    { id: 'videos', labelEn: 'Videos', labelHi: 'वीडियो', icon: Video },
+    { id: 'reviews', labelEn: 'Reviews', labelHi: 'समीक्षाएं', icon: Star },
+    { id: 'payments', labelEn: 'Payments', labelHi: 'भुगतान', icon: Receipt },
+    { id: 'reports', labelEn: 'Reports', labelHi: 'रिपोर्ट्स', icon: Activity },
+    { id: 'website', labelEn: 'Website', labelHi: 'वेबसाइट', icon: Globe },
     { id: 'ai-copilot', labelEn: 'AI Business Co-Pilot', labelHi: 'एआई को-पायलट', icon: Bot },
-    { id: 'website-mgmt', labelEn: 'Website & Branding', labelHi: 'वेबसाइट और ब्रांडिंग', icon: Globe },
-    { id: 'services', labelEn: 'Services & Add-ons', labelHi: 'सेवाएं और ऐड-ऑन', icon: Scissors },
-    { id: 'staff', labelEn: 'Staff & Roster', labelHi: 'स्टाफ और रोस्टर', icon: Users },
-    { id: 'packages', labelEn: 'Packages & Bundles', labelHi: 'पैकेजेस', icon: Package },
-    { id: 'offers', labelEn: 'Offers & Campaigns', labelHi: 'ऑफर्स', icon: Sparkles },
-    { id: 'coupons', labelEn: 'Coupons & Vouchers', labelHi: 'कूपन', icon: Ticket },
-    { id: 'gallery', labelEn: 'Lookbook & Gallery', labelHi: 'गैलरी', icon: Image },
-    { id: 'videos', labelEn: 'Videos & Reels', labelHi: 'वीडियो', icon: Video },
-    { id: 'reviews', labelEn: 'Reviews & Feedback', labelHi: 'समीक्षाएं', icon: Star },
+    { id: 'notifications', labelEn: 'Notifications & WhatsApp', labelHi: 'सूचनाएं और व्हाट्सएप', icon: Bell },
     { id: 'audit-logs', labelEn: 'Audit & Governance', labelHi: 'ऑडिट लॉग', icon: ShieldCheck },
     { id: 'settings', labelEn: 'Platform Settings', labelHi: 'सेटिंग्स', icon: Settings },
   ];

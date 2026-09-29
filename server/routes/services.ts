@@ -220,6 +220,58 @@ servicesRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: 
   }
 });
 
+// Duplicate service endpoint (Section 30)
+servicesRouter.post('/:id/duplicate', requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const origRes = await pg.query<any>('SELECT * FROM services WHERE id = $1', [id]);
+    if (origRes.rows.length === 0) return res.status(404).json({ error: 'Service not found' });
+    const s = origRes.rows[0];
+
+    const dupRes = await pg.query<any>(
+      `INSERT INTO services (business_id, title, title_hi, category, description, description_hi, price, discount_price, travel_fee, duration_mins, buffer_mins, image_url, video_url, is_popular, is_featured, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       RETURNING *`,
+      [
+        s.business_id,
+        `${s.title} (Copy)`,
+        s.title_hi ? `${s.title_hi} (प्रतिलिपि)` : null,
+        s.category,
+        s.description,
+        s.description_hi,
+        s.price,
+        s.discount_price,
+        s.travel_fee,
+        s.duration_mins,
+        s.buffer_mins,
+        s.image_url,
+        s.video_url,
+        s.is_popular,
+        s.is_featured,
+        true,
+      ]
+    );
+
+    const duplicated = dupRes.rows[0];
+
+    await logAuditEvent({
+      business_id: s.business_id,
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      user_role: req.user!.role,
+      action: 'SERVICE_DUPLICATED',
+      entity_type: 'service',
+      entity_id: duplicated.id,
+      details: { original_id: s.id, new_title: duplicated.title },
+    });
+
+    return res.status(201).json({ service: duplicated, message: 'Service duplicated successfully' });
+  } catch (error: any) {
+    console.error('Duplicate service error:', error);
+    return res.status(500).json({ error: 'Failed to duplicate service' });
+  }
+});
+
 // Archive service (Soft Delete)
 servicesRouter.patch('/:id/archive', requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {

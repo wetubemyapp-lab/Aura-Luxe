@@ -82,7 +82,7 @@ export const ContactLocationFAQPage: React.FC<ContactLocationFAQPageProps> = ({
           Contact, Locations & FAQs
         </h1>
         <p className="text-sm sm:text-base text-[#566176] font-light">
-          Connect directly with our desk team, navigate to your nearest atelier branch, or explore answers to common queries.
+          Connect directly with our desk team, navigate to your nearest salon branch, or explore answers to common queries.
         </p>
       </div>
 
@@ -127,13 +127,13 @@ export const ContactLocationFAQPage: React.FC<ContactLocationFAQPageProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in">
           <div className="lg:col-span-5 space-y-6">
             <div className="glass-card rounded-3xl p-6 sm:p-8 border border-[#EAE5DF] space-y-6">
-              <h3 className="font-serif font-bold text-xl text-[#1E2433]">Direct Concierge Desk</h3>
+              <h3 className="font-serif font-bold text-xl text-[#1E2433]">Call or Chat with Us</h3>
 
               <div className="space-y-4 text-xs text-[#566176]">
                 <div className="flex items-start gap-3">
                   <Phone className="w-4 h-4 text-[#D66A78] shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold text-[#1E2433] block">Phone Inquiries</span>
+                    <span className="font-bold text-[#1E2433] block">Call Us</span>
                     <span>{activeBranch?.phone || activeBusiness?.phone || '+91 98765 43210'}</span>
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export const ContactLocationFAQPage: React.FC<ContactLocationFAQPageProps> = ({
                   placeholder="+91 98765 43210"
                 />
                 <Textarea
-                  label="Your Message or Consultation Request *"
+                  label="Your Message or Question *"
                   required
                   rows={3}
                   value={inquiryMsg}
@@ -200,7 +200,7 @@ export const ContactLocationFAQPage: React.FC<ContactLocationFAQPageProps> = ({
                   placeholder="Describe your desired services, dates, or custom requests..."
                 />
                 <Button type="submit" variant="primary" rightIcon={<Send className="w-4 h-4" />}>
-                  Send Inquiry to Desk
+                  Send Message
                 </Button>
               </form>
             )}

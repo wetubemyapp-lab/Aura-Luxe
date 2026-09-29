@@ -42,7 +42,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({ onNavigateToBooking }) => {
       <div className="text-center max-w-2xl mx-auto space-y-3">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF4EB] text-[#C89B53] text-xs font-semibold uppercase tracking-widest">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Master Practitioners</span>
+          <span>Expert Stylists</span>
         </div>
         <h1 className="text-3xl sm:text-5xl font-serif font-bold text-[#1E2433] tracking-tight">
           Meet Our {categoryConfig.specialistTermPlural}
@@ -114,7 +114,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({ onNavigateToBooking }) => {
                   onClick={() => onNavigateToBooking()}
                   rightIcon={<Calendar className="w-3.5 h-3.5" />}
                 >
-                  Book Specialist
+                  Book Slot
                 </Button>
               </div>
             </div>
@@ -143,12 +143,12 @@ export const TeamPage: React.FC<TeamPageProps> = ({ onNavigateToBooking }) => {
               <div>
                 <Badge variant="accent" size="xs">{selectedStaff.role_title}</Badge>
                 <h3 className="font-serif font-bold text-2xl text-[#1E2433] mt-1">{selectedStaff.name}</h3>
-                <span className="text-xs text-[#8491A5]">Master Certified Specialist</span>
+                <span className="text-xs text-[#8491A5]">Certified Expert Staff</span>
               </div>
             </div>
 
             <div className="space-y-2">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-[#1E2433]">Specialist Bio & Philosophy</h4>
+              <h4 className="font-bold text-xs uppercase tracking-wider text-[#1E2433]">About Our Expert</h4>
               <p className="text-xs text-[#566176] leading-relaxed">
                 {selectedStaff.bio || 'Master craftsman dedicated to individualized grooming, organic skin therapies, and tailored styling consultations.'}
               </p>

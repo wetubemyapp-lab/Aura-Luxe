@@ -42,13 +42,13 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF4EB] text-[#C89B53] text-xs font-semibold uppercase tracking-widest">
               <BookOpen className="w-3.5 h-3.5" />
-              <span>Atelier Journal & Insights</span>
+              <span>Salon Blog & Tips</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-serif font-bold text-[#1E2433] tracking-tight">
               Style, Grooming & Wellness Journal
             </h1>
             <p className="text-sm sm:text-base text-[#566176] font-light">
-              Expert advice, aftercare guides, seasonal color trends, and holistic rejuvenation rituals from our master stylists.
+              Expert advice, aftercare guides, seasonal color trends, and holistic rejuvenation services from our master stylists.
             </p>
           </div>
 
@@ -69,7 +69,7 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
                 read: '5 min read',
               },
               {
-                title: 'Hot Towel Shave Ritual: Why Traditional Barbering Endures',
+                title: 'Hot Towel Shave Service: Why Traditional Barbering Endures',
                 cat: 'Grooming Heritage',
                 date: 'Sep 2026',
                 img: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80',
@@ -125,17 +125,17 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
                 features: ['1 Signature Facial or Hair Treatment / mo', '10% discount on all retail products', 'Standard weekend priority slotting'],
               },
               {
-                tier: 'Gold Atelier Privilege',
+                tier: 'Gold Salon Privilege',
                 price: '5,999',
                 period: '/month',
                 popular: true,
-                features: ['2 Full Holistic Rituals or Color sessions / mo', '15% discount across all services & retail', 'Dedicated VIP suite access with beverage bar', '1 Complimentary doorstep home service / quarter'],
+                features: ['2 Full Services or Color sessions / mo', '15% discount across all services & retail', 'Dedicated VIP suite access with beverage bar', '1 Complimentary home service / quarter'],
               },
               {
                 tier: 'Platinum Sovereign',
                 price: '9,999',
                 period: '/month',
-                features: ['Unlimited monthly haircuts & blowout styling', '4 Comprehensive Spa/Skin treatments / mo', '20% off bridal and companion bookings', '24/7 personal concierge booking line'],
+                features: ['Unlimited monthly haircuts & blowout styling', '4 Complete Spa/Skin services / mo', '20% off bridal and companion bookings', '24/7 personal concierge booking line'],
               },
             ].map((plan, i) => (
               <div
@@ -184,7 +184,7 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
               <span>Timeless Gifting</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-serif font-bold text-[#1E2433] tracking-tight">
-              Atelier Gift Vouchers
+              Salon Gift Cards
             </h1>
             <p className="text-sm sm:text-base text-[#566176] font-light">
               Send instant digital gift vouchers delivered directly via WhatsApp and email for birthdays, anniversaries, or corporate appreciation.
@@ -195,7 +195,7 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
             <div className="space-y-4">
               <h3 className="font-serif font-bold text-2xl text-[#1E2433]">The Perfect Gesture of Indulgence</h3>
               <p className="text-xs sm:text-sm text-[#566176] leading-relaxed">
-                Recipients can redeem their digital voucher across any service, signature package, or bespoke retail curation at all branches.
+                Recipients can redeem their digital voucher across any service, signature package, or tailored retail products at all branches.
               </p>
               <div className="flex flex-wrap gap-2 pt-2">
                 {['2,000', '5,000', '10,000', '15,000'].map((amt) => (
@@ -217,7 +217,7 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
 
             <div className="p-6 rounded-3xl bg-gradient-to-br from-[#1E2433] to-[#2B354F] text-white shadow-2xl space-y-6 aspect-[16/10] flex flex-col justify-between">
               <div className="flex justify-between items-center">
-                <span className="font-serif tracking-widest uppercase text-xs text-[#C89B53]">Aura Luxe Atelier</span>
+                <span className="font-serif tracking-widest uppercase text-xs text-[#C89B53]">Aura Luxe Salon</span>
                 <Gift className="w-5 h-5 text-[#C89B53]" />
               </div>
               <div>
@@ -239,10 +239,10 @@ export const OptionalModulesPage: React.FC<OptionalModulesPageProps> = ({
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF4EB] text-[#C89B53] text-xs font-semibold uppercase tracking-widest">
               <Heart className="w-3.5 h-3.5 text-[#D66A78]" />
-              <span>Haute Bridal Atelier</span>
+              <span>Bridal Salon Packages</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-serif font-bold text-[#1E2433] tracking-tight">
-              Bespoke Bridal & Groom Suites
+              Customized Bridal & Groom Suites
             </h1>
             <p className="text-sm sm:text-base text-[#566176] font-light">
               Flawless HD/Airbrush makeup, pre-wedding skin regimens, couture draping, and groomsman grooming lounges.

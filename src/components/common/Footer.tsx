@@ -12,13 +12,13 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
   const { activeBusiness, categoryConfig } = useBusiness();
   const { t, language } = useLanguage();
 
-  const businessName = activeBusiness?.name || 'Aura Luxe Atelier';
+  const businessName = activeBusiness?.name || 'Aura Luxe Salon';
   const tagline = language === 'hi'
     ? (activeBusiness?.tagline_hi || activeBusiness?.tagline)
     : activeBusiness?.tagline;
   const address = activeBusiness?.address || '42, Royal Heritage Boulevard, Indiranagar';
   const phone = activeBusiness?.phone || '+91 98765 43210';
-  const email = activeBusiness?.email || 'concierge@auraluxe.com';
+  const email = activeBusiness?.email || 'support@auraluxe.com';
   const openingHours = activeBusiness?.opening_hours || 'Mon - Sun: 09:30 AM - 09:30 PM';
 
   const handleNav = (tab: CustomerPageTab) => {
@@ -83,32 +83,32 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
           {/* Column 1: Services & Offers */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider font-serif border-b border-slate-800 pb-2">
-              Explore Atelier
+              Explore Our Salon
             </h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
                 <button onClick={() => handleNav('home')} className="hover:text-white transition-colors">
-                  Home Sanctuary
+                  Home Service
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('about')} className="hover:text-white transition-colors">
-                  About & Philosophy
+                  About Our Shop
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('services')} className="hover:text-white transition-colors">
-                  Services Catalog
+                  Our Services
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('packages')} className="hover:text-white transition-colors">
-                  Signature Packages
+                  Best Packages
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('offers')} className="hover:text-white transition-colors">
-                  Seasonal Offers
+                  Special Offers
                 </button>
               </li>
               <li>
@@ -122,12 +122,12 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
           {/* Column 2: Team, Showcase & Modules */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider font-serif border-b border-slate-800 pb-2">
-              Team & Showcase
+              Team & Photos
             </h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
                 <button onClick={() => handleNav('team')} className="hover:text-white transition-colors">
-                  Master Specialists
+                  Expert Stylists
                 </button>
               </li>
               <li>
@@ -142,46 +142,46 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
               </li>
               <li>
                 <button onClick={() => handleNav('reviews')} className="hover:text-white transition-colors">
-                  Guest Testimonials
+                  Customer Reviews
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('membership')} className="hover:text-white transition-colors text-[#C89B53]">
-                  VIP Privilege Club
+                  VIP Club
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('gift-cards')} className="hover:text-white transition-colors">
-                  Digital Gift Vouchers
+                  Gift Cards
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Column 3: Concierge & Policies */}
+          {/* Column 3: Support & Policies */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider font-serif border-b border-slate-800 pb-2">
-              Concierge & Policies
+              Support & Policies
             </h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
                 <button onClick={() => handleNav('contact')} className="hover:text-white transition-colors">
-                  Contact & Inquiries
+                  Contact Us
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('location')} className="hover:text-white transition-colors">
-                  Branch Outlets & Directions
+                  Our Branches & Map
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('faq')} className="hover:text-white transition-colors">
-                  Frequently Asked Questions
+                  Questions & Answers (FAQ)
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNav('privacy')} className="hover:text-white transition-colors">
-                  Privacy Statement
+                  Privacy Policy
                 </button>
               </li>
               <li>

@@ -42,6 +42,8 @@ import { AdminMarketingPage } from './pages/admin/AdminMarketingPage.tsx';
 import { AdminMediaReviewsPage } from './pages/admin/AdminMediaReviewsPage.tsx';
 import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage.tsx';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage.tsx';
+import { AdminNotificationsPage } from './pages/admin/AdminNotificationsPage.tsx';
+import { SEOManager } from './components/seo/SEOManager.tsx';
 
 import { ToastProvider } from './components/ui/Toast.tsx';
 
@@ -75,6 +77,7 @@ function MainApp() {
     <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-[#1E2433] selection:bg-[#D66A78] selection:text-white">
       {activePortal === 'customer' ? (
         <>
+          <SEOManager currentTab={customerTab} />
           <Header
             currentTab={customerTab}
             onSelectTab={(tab) => {
@@ -213,13 +216,15 @@ function MainApp() {
 
           {adminTab === 'bookings' && <AdminBookingsPage />}
 
-          {adminTab === 'branches' && <AdminBranchesPage />}
-
-          {adminTab === 'ledger' && <AdminLedgerPage />}
-
+          {adminTab === 'calendar' && <div className="p-8">Calendar View (Coming Soon)</div>}
+          {adminTab === 'customers' && <div className="p-8">Customer Management (Coming Soon)</div>}
+          {adminTab === 'payments' && <AdminLedgerPage />}
+          {adminTab === 'reports' && <div className="p-8">Reports View (Coming Soon)</div>}
+          {adminTab === 'website' && <AdminWebsitePage />}
+          
           {adminTab === 'ai-copilot' && <AdminAICopilotPage />}
 
-          {adminTab === 'website-mgmt' && <AdminWebsitePage />}
+          {adminTab === 'notifications' && <AdminNotificationsPage />}
 
           {adminTab === 'services' && <AdminServicesPage />}
 

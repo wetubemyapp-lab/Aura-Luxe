@@ -12,13 +12,33 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
+  FileText,
+  Tag,
+  PenTool,
+  Search,
+  HelpCircle,
+  Maximize2,
 } from 'lucide-react';
+import { Button } from '../../components/ui/index.ts';
 
 export const AdminAICopilotPage: React.FC = () => {
   const { language } = useLanguage();
   const { activeBusiness } = useBusiness();
 
-  const [activeTab, setActiveTab] = useState<'festival' | 'whatsapp' | 'slow_day' | 'review'>('festival');
+  // All pluggable task types supported
+  const [activeTab, setActiveTab] = useState<
+    | 'festival_campaign'
+    | 'whatsapp_promo'
+    | 'slow_day_booster'
+    | 'review_reply'
+    | 'service_description'
+    | 'offer_title'
+    | 'offer_description'
+    | 'instagram_caption'
+    | 'seo_meta'
+    | 'faq_draft'
+  >('festival_campaign');
+
   const [festivalName, setFestivalName] = useState('Diwali Grand Festive Season');
   const [discountPct, setDiscountPct] = useState('20');
   const [servicesTargeted, setServicesTargeted] = useState('Royal Scissor Cut, 24K Gold Facial, Aromatherapy Spa');
@@ -29,21 +49,16 @@ export const AdminAICopilotPage: React.FC = () => {
   const [generatedResult, setGeneratedResult] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
-  const handleGenerate = async (overrideType?: string) => {
+  const handleGenerate = async () => {
     setIsLoading(true);
     setCopied(false);
-    const targetType = overrideType || (
-      activeTab === 'festival' ? 'festival_campaign' :
-      activeTab === 'whatsapp' ? 'whatsapp_promo' :
-      activeTab === 'slow_day' ? 'slow_day_booster' : 'review_reply'
-    );
 
     try {
       const res = await fetch('/api/ai/copilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          taskType: targetType,
+          taskType: activeTab,
           festivalName,
           discount: discountPct,
           businessName: activeBusiness?.name || 'Aura Luxe Unisex Salon & Spa',
@@ -52,6 +67,7 @@ export const AdminAICopilotPage: React.FC = () => {
           reviewText: reviewInput,
           reviewRating,
           language,
+          business_id: activeBusiness?.id || 1,
         }),
       });
 
@@ -75,6 +91,19 @@ export const AdminAICopilotPage: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const tasksList = [
+    { id: 'festival_campaign' as const, label: 'Festival Campaigns', icon: Megaphone, desc: 'Festival campaign copy' },
+    { id: 'whatsapp_promo' as const, label: 'WhatsApp Broadcasts', icon: MessageSquare, desc: 'WhatsApp promotion messages' },
+    { id: 'instagram_caption' as const, label: 'Instagram Captions', icon: PenTool, desc: 'Social media captions with hashtags' },
+    { id: 'service_description' as const, label: 'Service Descriptions', icon: FileText, desc: 'SEO-ready service description cards' },
+    { id: 'offer_title' as const, label: 'Offer Titles', icon: Tag, desc: 'Compelling offer/coupon headers' },
+    { id: 'offer_description' as const, label: 'Offer Descriptions', icon: FileText, desc: 'Clear terms and highlights' },
+    { id: 'seo_meta' as const, label: 'SEO Meta Descriptions', icon: Search, desc: 'Google rank tags' },
+    { id: 'faq_draft' as const, label: 'FAQ Drafts', icon: HelpCircle, desc: 'Booking policy question drafts' },
+    { id: 'slow_day_booster' as const, label: 'Slow Day Booster', icon: TrendingUp, desc: 'Off-peak occupancies optimization' },
+    { id: 'review_reply' as const, label: 'Review Responses', icon: HeartHandshake, desc: 'Polite brand building replies' },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -95,71 +124,54 @@ export const AdminAICopilotPage: React.FC = () => {
             </div>
             <p className="text-slate-300 text-sm">
               {language === 'hi'
-                ? 'त्योहारी मार्केटिंग अभियान, व्हाट्सएप प्रचार, ऑफ-पीक बूस्टर और समीक्षा उत्तर बनाएं।'
-                : 'Automate festival campaigns, high-converting WhatsApp broadcasts, off-peak slot boosters, and gracious review replies.'}
+                ? 'त्योहारी मार्केटिंग अभियान, व्हाट्सएप प्रचार, विवरण और सोशल मीडिया कैप्शन एआई से तैयार करें।'
+                : 'Instantly generate high-converting WhatsApp promotions, SEO meta, service descriptions, and Instagram copy.'}
             </p>
           </div>
 
           <button
-            onClick={() => handleGenerate()}
+            onClick={handleGenerate}
             disabled={isLoading}
             className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#E07A5F] to-[#DDA15E] text-white font-semibold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50 self-start md:self-auto"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {language === 'hi' ? 'रणनीति तैयार करें' : 'Generate Strategy'}
+            {language === 'hi' ? 'रणनीति तैयार करें' : 'Generate Content'}
           </button>
         </div>
       </div>
 
-      {/* Navigation Pills */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-stone-100/80 rounded-2xl border border-stone-200">
-        <button
-          onClick={() => { setActiveTab('festival'); setGeneratedResult(''); }}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'festival'
-              ? 'bg-white text-[#0F172A] shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
-          }`}
-        >
-          <Megaphone className="w-4 h-4 text-[#E07A5F]" />
-          {language === 'hi' ? 'त्योहार अभियान (Festival)' : 'Festival Campaigns'}
-        </button>
-
-        <button
-          onClick={() => { setActiveTab('whatsapp'); setGeneratedResult(''); }}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'whatsapp'
-              ? 'bg-white text-[#0F172A] shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4 text-emerald-600" />
-          {language === 'hi' ? 'व्हाट्सएप प्रचार (WhatsApp)' : 'WhatsApp Promos'}
-        </button>
-
-        <button
-          onClick={() => { setActiveTab('slow_day'); setGeneratedResult(''); }}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'slow_day'
-              ? 'bg-white text-[#0F172A] shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
-          }`}
-        >
-          <TrendingUp className="w-4 h-4 text-blue-600" />
-          {language === 'hi' ? 'ऑफ-पीक बूस्टर (Slow Days)' : 'Slow Day Slot Optimizer'}
-        </button>
-
-        <button
-          onClick={() => { setActiveTab('review'); setGeneratedResult(''); }}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'review'
-              ? 'bg-white text-[#0F172A] shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
-          }`}
-        >
-          <HeartHandshake className="w-4 h-4 text-rose-500" />
-          {language === 'hi' ? 'समीक्षा उत्तर (Review Reply)' : 'Review Responder'}
-        </button>
+      {/* Grid of Task Types Selector */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Select AI Generation Goal</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {tasksList.map((task) => {
+            const Icon = task.icon;
+            const isSelected = activeTab === task.id;
+            return (
+              <button
+                key={task.id}
+                onClick={() => {
+                  setActiveTab(task.id);
+                  setGeneratedResult('');
+                }}
+                className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between h-24 ${
+                  isSelected
+                    ? 'border-[#E07A5F] bg-[#FAF4EB] text-stone-900 shadow-xs ring-1 ring-[#E07A5F]'
+                    : 'border-stone-200 bg-white hover:bg-stone-50 text-stone-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <Icon className={`w-5 h-5 ${isSelected ? 'text-[#E07A5F]' : 'text-stone-400'}`} />
+                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#E07A5F]" />}
+                </div>
+                <div>
+                  <p className="font-bold text-xs truncate">{task.label}</p>
+                  <p className="text-[9px] text-stone-400 line-clamp-1">{task.desc}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Main Workspace Grid */}
@@ -171,44 +183,45 @@ export const AdminAICopilotPage: React.FC = () => {
             {language === 'hi' ? 'अभियान पैरामीटर' : 'Campaign Parameters'}
           </h3>
 
-          {activeTab === 'festival' && (
+          {/* Festival Context fields */}
+          {(activeTab === 'festival_campaign' || activeTab === 'instagram_caption' || activeTab === 'offer_title' || activeTab === 'offer_description') && (
             <>
               <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
                   {language === 'hi' ? 'त्योहार या अवसर' : 'Festival or Occasion'}
                 </label>
                 <select
                   value={festivalName}
                   onChange={(e) => setFestivalName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold"
                 >
                   <option value="Diwali Grand Festive Glow">Diwali Grand Festive Glow</option>
-                  <option value="Karwa Chauth & Bridal Season">Karwa Chauth & Bridal Season</option>
-                  <option value="Eid Celebrations & Grooming">Eid Celebrations & Grooming</option>
-                  <option value="New Year & Christmas Glow">New Year & Christmas Glow</option>
-                  <option value="Valentine's Pampering Specials">Valentine's Pampering Specials</option>
-                  <option value="Monsoon Hydration Rituals">Monsoon Hydration Rituals</option>
+                  <option value="Karwa Chauth Specials">Karwa Chauth Specials</option>
+                  <option value="Eid Mubarak Delights">Eid Mubarak Delights</option>
+                  <option value="Christmas & New Year Bash">Christmas & New Year Bash</option>
+                  <option value="Monsoon Pampering Deals">Monsoon Pampering Deals</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
                   {language === 'hi' ? 'छूट प्रतिशत (Discount %)' : 'Discount Percentage (%)'}
                 </label>
                 <input
                   type="number"
                   value={discountPct}
                   onChange={(e) => setDiscountPct(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-mono"
                 />
               </div>
             </>
           )}
 
-          {(activeTab === 'whatsapp' || activeTab === 'festival') && (
+          {/* Service focused fields */}
+          {(activeTab === 'service_description' || activeTab === 'whatsapp_promo' || activeTab === 'festival_campaign') && (
             <div>
-              <label className="block text-xs font-medium text-stone-700 mb-1">
-                {language === 'hi' ? 'लक्षित सेवाएं' : 'Targeted Services'}
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                {language === 'hi' ? 'लक्षित सेवाएं' : 'Targeted Services / Packages'}
               </label>
               <textarea
                 rows={2}
@@ -219,10 +232,11 @@ export const AdminAICopilotPage: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'review' && (
+          {/* Review Replies fields */}
+          {activeTab === 'review_reply' && (
             <>
               <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
                   {language === 'hi' ? 'ग्राहक समीक्षा' : 'Customer Review Text'}
                 </label>
                 <textarea
@@ -234,7 +248,7 @@ export const AdminAICopilotPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
                   {language === 'hi' ? 'रेटिंग (Stars)' : 'Review Rating'}
                 </label>
                 <select
@@ -252,32 +266,48 @@ export const AdminAICopilotPage: React.FC = () => {
             </>
           )}
 
-          {activeTab === 'slow_day' && (
-            <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-xs text-blue-900 space-y-2">
-              <p className="font-semibold">Off-Peak Strategy Assistant:</p>
+          {activeTab === 'slow_day_booster' && (
+            <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-xs text-blue-900 space-y-1">
+              <p className="font-semibold">Weekday High-Occupancy Optimizer</p>
               <p className="text-blue-800 leading-relaxed">
-                Gemini will formulate dynamic Happy Hours, bundle pairings, and automated WhatsApp broadcasts designed to drive bookings during typically low-occupancy weekday slots (Tue-Thu 12 PM - 4 PM).
+                Gemini will scan our real services and formulate dynamic Happy Hours, bundle pairings, and whatsapp drafts to fill empty chairs on weekday afternoons.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'seo_meta' && (
+            <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 text-xs text-purple-900 space-y-1">
+              <p className="font-semibold">Google Rank Strategy</p>
+              <p className="text-purple-800 leading-relaxed">
+                Formulates Meta Title tags, Meta Keywords, and OG Share snippets tailored to your salon brand category.
               </p>
             </div>
           )}
 
           <button
-            onClick={() => handleGenerate()}
+            onClick={handleGenerate}
             disabled={isLoading}
             className="w-full py-3 rounded-xl bg-[#0F172A] hover:bg-[#E07A5F] text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-[#E07A5F]" />}
-            {language === 'hi' ? 'एआई आउटपुट बनाएं' : 'Generate with Gemini AI'}
+            {language === 'hi' ? 'एआई आउटपुट बनाएं' : 'Craft Copy with Gemini'}
           </button>
         </div>
 
-        {/* Output Column */}
+        {/* Output Column with Live Edit Capabilities */}
         <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-stone-200/80 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
-              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
-                {language === 'hi' ? 'तैयार सामग्री (AI Generated)' : 'Generated Output'}
-              </span>
+              <div className="space-y-0.5">
+                <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider block">
+                  {language === 'hi' ? 'तैयार सामग्री (AI Generated)' : 'Generated Output'}
+                </span>
+                {generatedResult && (
+                  <span className="text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100 animate-pulse">
+                    ✏️ Editable Content
+                  </span>
+                )}
+              </div>
 
               {generatedResult && (
                 <div className="flex items-center gap-2">
@@ -296,7 +326,7 @@ export const AdminAICopilotPage: React.FC = () => {
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-medium transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    Share on WhatsApp
+                    Broadcast
                   </a>
                 </div>
               )}
@@ -306,22 +336,31 @@ export const AdminAICopilotPage: React.FC = () => {
               <div className="py-20 flex flex-col items-center justify-center text-center space-y-3">
                 <Loader2 className="w-8 h-8 text-[#E07A5F] animate-spin" />
                 <p className="text-sm font-medium text-stone-600">
-                  {language === 'hi' ? 'एआई को-पायलट सामग्री तैयार कर रहा है...' : 'AI Co-Pilot is crafting your campaign copy...'}
+                  {language === 'hi' ? 'एआई सामग्री तैयार कर रहा है...' : 'AI Co-Pilot is crafting your campaign copy...'}
                 </p>
-                <p className="text-xs text-stone-400">Grounded in luxury salon & spa domain intelligence</p>
+                <p className="text-xs text-stone-400">Grounded in luxury salon & spa database context</p>
               </div>
             ) : generatedResult ? (
-              <div className="bg-stone-50 rounded-2xl p-5 text-sm leading-relaxed text-slate-800 whitespace-pre-wrap font-sans border border-stone-200">
-                {generatedResult}
+              <div className="space-y-2">
+                <textarea
+                  rows={14}
+                  value={generatedResult}
+                  onChange={(e) => setGeneratedResult(e.target.value)}
+                  className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl text-xs sm:text-sm text-slate-800 leading-relaxed font-mono resize-y focus:outline-none focus:ring-1 focus:ring-[#E07A5F]"
+                  placeholder="Edit generated content here..."
+                />
+                <p className="text-[10px] text-stone-400 italic">
+                  *This text field is live. You can make adjustments above before copying or sharing with your audience.
+                </p>
               </div>
             ) : (
               <div className="py-20 flex flex-col items-center justify-center text-center space-y-3 text-stone-400">
-                <Sparkles className="w-10 h-10 text-stone-300" />
+                <Sparkles className="w-10 h-10 text-stone-300 animate-bounce" />
                 <p className="text-sm font-medium text-stone-600">
-                  {language === 'hi' ? 'पैरामीटर चुनें और जेनरेट पर क्लिक करें' : 'Select your parameters and click Generate'}
+                  {language === 'hi' ? 'पैरामीटर चुनें और जेनरेट पर क्लिक करें' : 'Select parameters and click Generate'}
                 </p>
                 <p className="text-xs max-w-sm">
-                  Creates broadcast-ready text, emoji-rich WhatsApp templates, and actionable business strategies in seconds.
+                  Creates ready-to-copy, custom editable templates, descriptions, and FAQs grounded in real services.
                 </p>
               </div>
             )}
