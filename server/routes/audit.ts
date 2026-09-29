@@ -33,3 +33,34 @@ auditRouter.get('/', requireAdmin, async (req: AuthenticatedRequest, res: Respon
     return res.status(500).json({ error: 'Failed to retrieve audit logs' });
   }
 });
+
+// Export helper for recording audit events
+export async function logAuditEvent(data: {
+  business_id: number;
+  user_id: number;
+  user_name: string;
+  user_role: string;
+  action: string;
+  entity_type: string;
+  entity_id?: number;
+  details?: any;
+}) {
+  try {
+    await pg.query(
+      `INSERT INTO audit_logs (business_id, user_id, user_name, user_role, action, entity_type, entity_id, details_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        data.business_id,
+        data.user_id,
+        data.user_name,
+        data.user_role,
+        data.action,
+        data.entity_type,
+        data.entity_id || null,
+        data.details ? JSON.stringify(data.details) : null,
+      ]
+    );
+  } catch (err) {
+    console.error('Failed to log audit event:', err);
+  }
+}

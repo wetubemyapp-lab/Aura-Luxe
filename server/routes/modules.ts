@@ -8,17 +8,39 @@ export const modulesRouter = Router();
 modulesRouter.get('/staff', async (req, res): Promise<any> => {
   try {
     const businessId = req.query.businessId ? parseInt(req.query.businessId as string) : 1;
+    const branchId = req.query.branchId ? parseInt(req.query.branchId as string) : null;
+    const date = req.query.date as string;
+    const time = req.query.time as string;
     const includeArchived = req.query.archived === 'true';
 
     let query = 'SELECT * FROM staff WHERE business_id = $1';
+    const params: any[] = [businessId];
+
     if (!includeArchived) {
       query += ' AND is_archived = FALSE AND is_active = TRUE';
     } else {
       query += ' AND is_archived = TRUE';
     }
+
+    if (branchId) {
+      params.push(branchId);
+      query += ` AND (branch_id = $${params.length} OR branch_id IS NULL)`;
+    }
+
+    if (date && time) {
+      params.push(date, time);
+      const dateIdx = params.length - 1;
+      const timeIdx = params.length;
+      query += ` AND id NOT IN (
+        SELECT staff_id FROM bookings
+        WHERE business_id = $1 AND booking_date = $${dateIdx} AND booking_time = $${timeIdx}
+          AND status NOT IN ('cancelled', 'refunded') AND is_archived = FALSE AND staff_id IS NOT NULL
+      )`;
+    }
+
     query += ' ORDER BY id ASC';
 
-    const result = await pg.query(query, [businessId]);
+    const result = await pg.query(query, params);
     return res.json({ staff: result.rows });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to fetch staff' });
@@ -180,17 +202,94 @@ modulesRouter.get('/offers', async (req, res): Promise<any> => {
 
 modulesRouter.post('/offers', requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
-    const { business_id = 1, title, title_hi, description, discount_pct, code, valid_until } = req.body;
+    const {
+      business_id = 1,
+      title,
+      title_hi,
+      subtitle,
+      description,
+      banner_image,
+      festival_tag = 'Diwali',
+      start_at,
+      end_at,
+      offer_type = 'festival',
+      discount_type = 'percentage',
+      discount_value = 0,
+      coupon_code,
+      included_services,
+      included_package,
+      outlets,
+      discount_pct,
+      code,
+      valid_until,
+      is_featured = true,
+      is_active = true,
+    } = req.body;
+
     if (!title) return res.status(400).json({ error: 'Title is required' });
 
     const result = await pg.query(
-      `INSERT INTO offers (business_id, title, title_hi, description, discount_pct, code, valid_until)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [business_id, title, title_hi || null, description || null, discount_pct || null, code || null, valid_until || null]
+      `INSERT INTO offers (
+        business_id, title, title_hi, subtitle, description, banner_image,
+        festival_tag, start_at, end_at, offer_type, discount_type, discount_value,
+        coupon_code, included_services, included_package, outlets, discount_pct, code,
+        valid_until, is_featured, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      RETURNING *`,
+      [
+        business_id, title, title_hi || null, subtitle || null, description || null, banner_image || null,
+        festival_tag, start_at || null, end_at || null, offer_type, discount_type, discount_value,
+        coupon_code || code || null, included_services || null, included_package || null, outlets || null,
+        discount_pct || discount_value, code || coupon_code || null, valid_until || end_at || null, is_featured, is_active
+      ]
     );
-    return res.status(201).json({ offer: result.rows[0], message: 'Offer published' });
+    return res.status(201).json({ offer: result.rows[0], message: 'Festival Offer Published' });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to create offer' });
+    return res.status(500).json({ error: 'Failed to create festival offer' });
+  }
+});
+
+modulesRouter.put('/offers/:id', requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const {
+      title, title_hi, subtitle, description, banner_image, festival_tag,
+      start_at, end_at, offer_type, discount_type, discount_value, coupon_code,
+      included_services, included_package, outlets, is_featured, is_active
+    } = req.body;
+
+    const result = await pg.query(
+      `UPDATE offers SET
+        title = COALESCE($1, title),
+        title_hi = COALESCE($2, title_hi),
+        subtitle = COALESCE($3, subtitle),
+        description = COALESCE($4, description),
+        banner_image = COALESCE($5, banner_image),
+        festival_tag = COALESCE($6, festival_tag),
+        start_at = COALESCE($7, start_at),
+        end_at = COALESCE($8, end_at),
+        offer_type = COALESCE($9, offer_type),
+        discount_type = COALESCE($10, discount_type),
+        discount_value = COALESCE($11, discount_value),
+        coupon_code = COALESCE($12, coupon_code),
+        included_services = COALESCE($13, included_services),
+        included_package = COALESCE($14, included_package),
+        outlets = COALESCE($15, outlets),
+        is_featured = COALESCE($16, is_featured),
+        is_active = COALESCE($17, is_active)
+      WHERE id = $18
+      RETURNING *`,
+      [
+        title, title_hi, subtitle, description, banner_image, festival_tag,
+        start_at, end_at, offer_type, discount_type, discount_value, coupon_code,
+        included_services, included_package, outlets, is_featured, is_active, id
+      ]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Offer not found' });
+    return res.json({ offer: result.rows[0], message: 'Offer updated successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to update offer' });
   }
 });
 
@@ -262,25 +361,45 @@ modulesRouter.post('/coupons/validate', async (req, res): Promise<any> => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ valid: false, error: 'Invalid or expired coupon code' });
+      return res.status(404).json({ valid: false, error: 'Invalid or non-existent coupon code' });
     }
 
     const coupon: any = result.rows[0];
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check validity date window
+    if (coupon.valid_from && coupon.valid_from.toString().slice(0, 10) > today) {
+      return res.status(400).json({ valid: false, error: 'This promo code is not active yet.' });
+    }
+    if (coupon.valid_until && coupon.valid_until.toString().slice(0, 10) < today) {
+      return res.status(400).json({ valid: false, error: 'This coupon code has expired.' });
+    }
+
+    // Check usage limit
+    if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
+      return res.status(400).json({ valid: false, error: 'This promo code has reached its maximum redemption limit.' });
+    }
+
     const numSubtotal = parseFloat(subtotal);
     const minSpend = parseFloat(coupon.min_spend || '0');
 
     if (numSubtotal < minSpend) {
       return res.status(400).json({
         valid: false,
-        error: `Minimum order value of ₹${minSpend} required for this coupon`,
+        error: `Minimum order value of ₹${minSpend} required for code ${coupon.code}`,
       });
     }
 
     let discount = 0;
-    if (coupon.discount_type === 'flat') {
+    if (coupon.discount_type === 'flat' || coupon.discount_type === 'fixed') {
       discount = Math.min(parseFloat(coupon.discount_value), numSubtotal);
     } else {
       discount = parseFloat(((numSubtotal * parseFloat(coupon.discount_value)) / 100).toFixed(2));
+    }
+
+    // Max discount ceiling
+    if (coupon.max_discount_amount && parseFloat(coupon.max_discount_amount) > 0) {
+      discount = Math.min(discount, parseFloat(coupon.max_discount_amount));
     }
 
     return res.json({
@@ -291,7 +410,7 @@ modulesRouter.post('/coupons/validate', async (req, res): Promise<any> => {
         discount_value: coupon.discount_value,
         discount_amount: discount,
       },
-      message: `Coupon ${coupon.code} applied! You save ₹${discount}`,
+      message: `Coupon ${coupon.code} applied! You save ₹${discount.toFixed(2)}`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to validate coupon' });

@@ -211,10 +211,23 @@ export interface OfferItem {
   business_id?: number;
   title: string;
   title_hi?: string;
+  subtitle?: string;
   description?: string;
+  banner_image?: string;
+  festival_tag?: string;
+  start_at?: string;
+  end_at?: string;
+  offer_type?: string;
+  discount_type?: string;
+  discount_value?: number | string;
+  coupon_code?: string;
+  included_services?: string;
+  included_package?: string;
+  outlets?: string;
   discount_pct?: number;
   code?: string;
   valid_until?: string;
+  is_featured?: boolean;
   is_active: boolean;
   is_archived?: boolean;
 }

@@ -67,7 +67,145 @@ export function buildWhatsAppLink(phone: string | undefined, data: {
   return `https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`;
 }
 
-// Customer: Get my bookings
+// Dynamic Time Slots Generator Endpoint (Section 14 & 16 Buffer Time Engine)
+bookingsRouter.get('/slots', async (req, res): Promise<any> => {
+  try {
+    const businessId = req.query.businessId ? parseInt(req.query.businessId as string) : 1;
+    const branchId = req.query.branchId ? parseInt(req.query.branchId as string) : null;
+    const staffId = req.query.staffId ? parseInt(req.query.staffId as string) : null;
+    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+    const requestedDuration = req.query.duration ? parseInt(req.query.duration as string) : 45;
+
+    // Fetch Business Configuration for Operating Hours & Buffer Rules
+    const busRes = await pg.query<any>('SELECT slot_interval_mins, buffer_time_mins FROM businesses WHERE id = $1', [businessId]);
+    const slotInterval = busRes.rows[0]?.slot_interval_mins || 30;
+    const bufferTime = busRes.rows[0]?.buffer_time_mins || 15;
+
+    // Standard business operating hours: 09:00 AM to 08:30 PM (12 hours)
+    const baseSlots: string[] = [];
+    const startHour = 9;
+    const endHour = 20;
+
+    for (let h = startHour; h <= endHour; h++) {
+      for (let m = 0; m < 60; m += slotInterval) {
+        const period = h >= 12 ? 'PM' : 'AM';
+        const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        const strH = displayH < 10 ? `0${displayH}` : `${displayH}`;
+        const strM = m < 10 ? `0${m}` : `${m}`;
+        baseSlots.push(`${strH}:${strM} ${period}`);
+      }
+    }
+
+    // Query active holds and confirmed bookings for this date to purge occupied slots
+    const occupiedRes = await pg.query<any>(
+      `SELECT booking_time FROM bookings
+       WHERE business_id = $1 AND booking_date = $2::date
+         AND status NOT IN ('cancelled', 'refunded') AND is_archived = FALSE
+         AND ($3::int IS NULL OR staff_id = $3)
+       UNION
+       SELECT start_time as booking_time FROM booking_holds
+       WHERE business_id = $1 AND booking_date = $2::date AND expires_at > CURRENT_TIMESTAMP AND status = 'ACTIVE'
+         AND ($3::int IS NULL OR staff_id = $3)`,
+      [businessId, date, staffId]
+    );
+
+    const occupiedTimes = new Set(occupiedRes.rows.map((r: any) => r.booking_time));
+    const availableSlots = baseSlots.map((slotTime) => ({
+      time: slotTime,
+      available: !occupiedTimes.has(slotTime),
+      buffer_mins: bufferTime,
+    }));
+
+    return res.json({
+      date,
+      slot_interval_mins: slotInterval,
+      buffer_time_mins: bufferTime,
+      total_duration_required: requestedDuration + bufferTime,
+      slots: availableSlots,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to generate dynamic time slots' });
+  }
+});
+
+// Section 15: Temporary Slot Lock Endpoint (5-Minute Hold)
+bookingsRouter.post('/hold', async (req, res): Promise<any> => {
+  try {
+    const {
+      business_id = 1,
+      outlet_id = 1,
+      staff_id,
+      booking_date,
+      start_time,
+      duration_mins = 45,
+      session_id,
+    } = req.body;
+
+    if (!booking_date || !start_time || !session_id) {
+      return res.status(400).json({ error: 'Date, start time, and session_id are required' });
+    }
+
+    // Check for confirmed booking conflict
+    const bookingConflict = await pg.query<any>(
+      `SELECT id FROM bookings
+       WHERE business_id = $1 AND booking_date = $2::date AND booking_time = $3
+         AND status NOT IN ('cancelled', 'refunded') AND is_archived = FALSE
+         AND ($4::int IS NULL OR staff_id = $4)`,
+      [business_id, booking_date, start_time, staff_id || null]
+    );
+
+    if (bookingConflict.rows.length > 0) {
+      return res.status(409).json({
+        error: 'This time slot is already confirmed by another client. Please select a different time.',
+      });
+    }
+
+    // Check for active hold from ANOTHER session
+    const holdConflict = await pg.query<any>(
+      `SELECT id, session_id FROM booking_holds
+       WHERE business_id = $1 AND booking_date = $2::date AND start_time = $3
+         AND status = 'ACTIVE' AND expires_at > CURRENT_TIMESTAMP
+         AND session_id != $4
+         AND ($5::int IS NULL OR staff_id = $5)`,
+      [business_id, booking_date, start_time, session_id, staff_id || null]
+    );
+
+    if (holdConflict.rows.length > 0) {
+      return res.status(409).json({
+        error: 'This time slot is temporarily locked by another client. Please try another slot.',
+      });
+    }
+
+    // Expire any existing holds for this session
+    await pg.query(
+      `UPDATE booking_holds SET status = 'EXPIRED' WHERE session_id = $1 AND status = 'ACTIVE'`,
+      [session_id]
+    );
+
+    // Create a 5-minute active hold
+    const holdRes = await pg.query<any>(
+      `INSERT INTO booking_holds (
+        business_id, outlet_id, staff_id, booking_date, start_time, duration_mins,
+        session_id, expires_at, status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP + INTERVAL '5 minutes', 'ACTIVE'
+      ) RETURNING id, expires_at, status`,
+      [business_id, outlet_id, staff_id || null, booking_date, start_time, duration_mins, session_id]
+    );
+
+    const hold: any = holdRes.rows[0];
+    return res.json({
+      message: 'Time slot temporarily locked for 5 minutes',
+      booking_hold_id: hold.id,
+      expires_at: hold.expires_at,
+      status: hold.status,
+      ttl_seconds: 300,
+    });
+  } catch (err: any) {
+    console.error('Create slot hold error:', err);
+    return res.status(500).json({ error: 'Failed to place temporary slot hold' });
+  }
+});
 bookingsRouter.get('/my', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
     const userId = req.user!.id;
@@ -214,9 +352,50 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     const bufferMins = parseInt(servicesRes.rows[0]?.buffer_mins || 10);
     const totalSlotDuration = totalDurationMins + bufferMins;
 
-    // 3. Real Transactional Conflict Detection with Row Locking
-    if (staff_id) {
-      // Check for overlapping bookings for this staff on this date
+    // 3. Real Transactional Conflict Detection & Auto Staff Assignment
+    let assignedStaffId = staff_id ? parseInt(staff_id) : null;
+
+    if (!assignedStaffId) {
+      // Auto-assign qualified staff member based on outlet, active status, and slot availability
+      const autoStaffQuery = `
+        SELECT s.id FROM staff s
+        WHERE s.business_id = $1
+          AND s.is_active = TRUE
+          AND s.is_archived = FALSE
+          AND ($2::int IS NULL OR s.branch_id = $2 OR s.branch_id IS NULL)
+          AND s.id NOT IN (
+            SELECT b.staff_id FROM bookings b
+            WHERE b.business_id = $1
+              AND b.booking_date = $3
+              AND b.booking_time = $4
+              AND b.status NOT IN ('cancelled', 'refunded')
+              AND b.is_archived = FALSE
+              AND b.staff_id IS NOT NULL
+          )
+        ORDER BY RANDOM()
+        LIMIT 1
+      `;
+      const autoStaffRes = await client.query<any>(autoStaffQuery, [
+        bId,
+        branch_id ? parseInt(branch_id) : null,
+        booking_date,
+        booking_time,
+      ]);
+
+      if (autoStaffRes.rows.length > 0) {
+        assignedStaffId = autoStaffRes.rows[0].id;
+      } else {
+        // Fallback: assign first available active staff member
+        const fallbackStaffRes = await client.query<any>(
+          `SELECT id FROM staff WHERE business_id = $1 AND is_active = TRUE AND is_archived = FALSE ORDER BY id ASC LIMIT 1`,
+          [bId]
+        );
+        if (fallbackStaffRes.rows.length > 0) {
+          assignedStaffId = fallbackStaffRes.rows[0].id;
+        }
+      }
+    } else {
+      // Check for overlapping bookings for explicitly chosen staff
       const overlapQuery = `
         SELECT id, booking_time, duration_mins FROM bookings
         WHERE staff_id = $1
@@ -226,7 +405,7 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
           AND booking_time = $3
         FOR UPDATE
       `;
-      const conflictRes = await client.query<any>(overlapQuery, [staff_id, booking_date, booking_time]);
+      const conflictRes = await client.query<any>(overlapQuery, [assignedStaffId, booking_date, booking_time]);
 
       if (conflictRes.rows.length > 0) {
         await client.query('ROLLBACK');
@@ -251,13 +430,24 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
       );
       if (couponRes.rows.length > 0) {
         const coupon = couponRes.rows[0];
-        if (subtotal >= parseFloat(coupon.min_spend || '0')) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const validFromOk = !coupon.valid_from || coupon.valid_from.toString().slice(0, 10) <= todayStr;
+        const validUntilOk = !coupon.valid_until || coupon.valid_until.toString().slice(0, 10) >= todayStr;
+        const limitOk = !coupon.usage_limit || (coupon.used_count || 0) < coupon.usage_limit;
+
+        if (validFromOk && validUntilOk && limitOk && subtotal >= parseFloat(coupon.min_spend || '0')) {
           validatedCouponCode = coupon.code;
-          if (coupon.discount_type === 'flat') {
+          if (coupon.discount_type === 'flat' || coupon.discount_type === 'fixed') {
             discountAmount = Math.min(parseFloat(coupon.discount_value), subtotal);
           } else {
             discountAmount = parseFloat(((subtotal * parseFloat(coupon.discount_value)) / 100).toFixed(2));
           }
+          if (coupon.max_discount_amount && parseFloat(coupon.max_discount_amount) > 0) {
+            discountAmount = Math.min(discountAmount, parseFloat(coupon.max_discount_amount));
+          }
+
+          // Increment usage count
+          await client.query('UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1 WHERE id = $1', [coupon.id]);
         }
       }
     }
@@ -310,7 +500,7 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
       branch_id || 1,
       userId,
       primaryServiceId,
-      staff_id || null,
+      assignedStaffId,
       booking_mode,
       home_service_address || null,
       travelFee,
@@ -336,6 +526,13 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     ]);
 
     const booking = bookingRes.rows[0];
+
+    // Convert active slot hold for this slot to CONVERTED
+    await client.query(
+      `UPDATE booking_holds SET status = 'CONVERTED'
+       WHERE business_id = $1 AND booking_date = $2 AND start_time = $3 AND status = 'ACTIVE'`,
+      [bId, booking_date, booking_time]
+    );
 
     // 6. Insert Multiple Booking Items
     for (const srv of servicesRes.rows) {

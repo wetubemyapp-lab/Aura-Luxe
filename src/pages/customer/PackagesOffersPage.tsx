@@ -175,42 +175,73 @@ export const PackagesOffersPage: React.FC<PackagesOffersPageProps> = ({
 
           {/* TAB 2: Offers */}
           {activeTab === 'offers' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
               {offers.map((offer) => (
                 <div
                   key={offer.id}
-                  className="glass-card rounded-3xl p-6 border border-[#EAE5DF] flex flex-col justify-between hover-lift transition-all"
+                  className="glass-card rounded-3xl overflow-hidden border border-[#EAE5DF] flex flex-col justify-between hover-lift transition-all group"
                 >
-                  <div className="space-y-3">
+                  {offer.banner_image && (
+                    <div className="h-44 relative overflow-hidden bg-stone-100">
+                      <img
+                        src={offer.banner_image}
+                        alt={offer.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-amber-300 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border border-amber-400/30">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{offer.festival_tag || 'Festive Offer'}</span>
+                      </div>
+                      {(offer.valid_until || offer.end_at) && (
+                        <div className="absolute bottom-3 right-3 px-3 py-1 rounded-xl bg-black/70 backdrop-blur-md text-white text-xs font-mono font-bold flex items-center gap-1.5 border border-white/20">
+                          <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                          <span>Ends: {(offer.end_at || offer.valid_until)?.toString().slice(0, 10)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#C89B53] uppercase tracking-wider flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {offer.discount_pct}% OFF
+                      <span className="text-xs font-bold text-[#D66A78] uppercase tracking-wider flex items-center gap-1 bg-[#FDF2F3] px-2.5 py-1 rounded-md">
+                        <Tag className="w-3.5 h-3.5" />
+                        {offer.discount_type === 'flat'
+                          ? `${currency}${offer.discount_value} OFF`
+                          : `${offer.discount_pct || offer.discount_value || 20}% OFF`}
                       </span>
-                      {offer.valid_until && (
-                        <span className="text-[10px] text-[#8491A5] flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          Valid: {offer.valid_until}
+                      {!offer.banner_image && (offer.valid_until || offer.end_at) && (
+                        <span className="text-[10px] text-[#8491A5] flex items-center gap-1 font-mono">
+                          <Clock className="w-3 h-3 text-[#C89B53]" />
+                          Expires: {(offer.end_at || offer.valid_until)?.toString().slice(0, 10)}
                         </span>
                       )}
                     </div>
 
-                    <h3 className="font-serif font-bold text-lg text-[#1E2433]">{offer.title}</h3>
+                    <h3 className="font-serif font-bold text-xl text-[#1E2433]">{offer.title}</h3>
+                    {offer.subtitle && (
+                      <p className="text-xs font-semibold text-[#C89B53] uppercase tracking-wide">
+                        {offer.subtitle}
+                      </p>
+                    )}
                     <p className="text-xs text-[#566176] leading-relaxed">{offer.description}</p>
                   </div>
 
-                  <div className="pt-6 border-t border-[#EAE5DF] mt-4 flex items-center justify-between">
-                    {offer.code ? (
+                  <div className="px-6 py-4 bg-stone-50/80 border-t border-[#EAE5DF] flex items-center justify-between">
+                    {(offer.coupon_code || offer.code) ? (
                       <button
                         type="button"
-                        onClick={() => handleCopyCode(offer.code!)}
-                        className="px-3 py-1.5 rounded-xl bg-stone-100 text-[#1E2433] font-mono font-bold text-xs flex items-center gap-1.5 hover:bg-stone-200 transition-colors"
+                        onClick={() => handleCopyCode(offer.coupon_code || offer.code!)}
+                        className="px-3 py-1.5 rounded-xl bg-white border border-[#EAE5DF] text-[#1E2433] font-mono font-bold text-xs flex items-center gap-1.5 hover:border-[#D66A78] transition-colors shadow-xs"
                       >
-                        {copiedCode === offer.code ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        {offer.code}
+                        {copiedCode === (offer.coupon_code || offer.code) ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-[#C89B53]" />
+                        )}
+                        <span>{offer.coupon_code || offer.code}</span>
                       </button>
                     ) : (
-                      <span className="text-xs text-stone-400">Automatic at Checkout</span>
+                      <span className="text-xs text-stone-400 font-medium">Automatic at Checkout</span>
                     )}
 
                     <Button variant="primary" size="sm" onClick={() => onNavigateToBooking()}>

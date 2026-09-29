@@ -13,6 +13,7 @@ import { modulesRouter } from './server/routes/modules.ts';
 import { branchesRouter } from './server/routes/branches.ts';
 import { aiRouter } from './server/routes/ai.ts';
 import { auditRouter } from './server/routes/audit.ts';
+import { paymentsRouter } from './server/routes/payments.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +39,7 @@ async function startServer() {
   app.use('/api/branches', branchesRouter);
   app.use('/api/ai', aiRouter);
   app.use('/api/audit-logs', auditRouter);
+  app.use('/api/payments', paymentsRouter);
   app.use('/api', modulesRouter);
 
   // Health check endpoint

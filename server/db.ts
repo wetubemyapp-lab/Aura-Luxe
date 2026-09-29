@@ -132,11 +132,26 @@ export async function initDatabase() {
       business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       title_hi TEXT,
+      subtitle TEXT,
       description TEXT,
+      banner_image TEXT,
+      festival_tag TEXT DEFAULT 'Diwali',
+      start_at TIMESTAMP,
+      end_at TIMESTAMP,
+      offer_type TEXT DEFAULT 'festival',
+      discount_type TEXT DEFAULT 'percentage',
+      discount_value NUMERIC(10,2) DEFAULT 0,
+      coupon_code TEXT,
+      included_services TEXT,
+      included_package TEXT,
+      outlets TEXT,
       discount_pct INTEGER,
       code TEXT,
       valid_until TEXT,
+      is_featured BOOLEAN DEFAULT TRUE,
       is_active BOOLEAN DEFAULT TRUE,
+      is_archived BOOLEAN DEFAULT FALSE,
+      deleted_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -147,7 +162,14 @@ export async function initDatabase() {
       discount_type TEXT DEFAULT 'percentage',
       discount_value NUMERIC(10,2) NOT NULL,
       min_spend NUMERIC(10,2) DEFAULT 0,
+      max_discount_amount NUMERIC(10,2),
+      usage_limit INTEGER DEFAULT 100,
+      used_count INTEGER DEFAULT 0,
+      valid_from DATE,
+      valid_until DATE,
       is_active BOOLEAN DEFAULT TRUE,
+      is_archived BOOLEAN DEFAULT FALSE,
+      deleted_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -192,8 +214,8 @@ export async function initDatabase() {
       booking_date DATE NOT NULL,
       booking_time TEXT NOT NULL,
       duration_mins INTEGER NOT NULL DEFAULT 45,
-      status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('pending', 'confirmed', 'in_service', 'completed', 'cancelled', 'no_show')),
-      payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'deposit_paid', 'paid', 'refunded')),
+      status TEXT NOT NULL DEFAULT 'CONFIRMED' CHECK (status IN ('DRAFT', 'HELD', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'IN_SERVICE', 'COMPLETED', 'RESCHEDULE_REQUESTED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_OWNER', 'NO_SHOW', 'REFUND_PENDING', 'REFUNDED', 'pending', 'confirmed', 'in_service', 'completed', 'cancelled', 'no_show')),
+      payment_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('INITIATED', 'PENDING', 'AUTHORIZED', 'PAID', 'PARTIALLY_PAID', 'FAILED', 'REFUND_PENDING', 'REFUNDED', 'PARTIALLY_REFUNDED', 'CANCELLED', 'unpaid', 'deposit_paid', 'paid', 'refunded')),
       payment_option TEXT NOT NULL DEFAULT 'full_online' CHECK (payment_option IN ('full_online', 'advance_online', 'pay_at_venue')),
       service_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
       addons_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -220,6 +242,36 @@ export async function initDatabase() {
       service_title TEXT NOT NULL,
       price NUMERIC(10,2) NOT NULL,
       duration_mins INTEGER NOT NULL DEFAULT 30,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS payment_transactions (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
+      booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+      idempotency_key TEXT UNIQUE NOT NULL,
+      gateway TEXT DEFAULT 'Razorpay',
+      transaction_id TEXT,
+      amount NUMERIC(10,2) NOT NULL,
+      currency TEXT DEFAULT '₹',
+      payment_mode TEXT,
+      status TEXT NOT NULL DEFAULT 'INITIATED',
+      raw_payload TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS booking_holds (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER REFERENCES businesses(id) ON DELETE CASCADE,
+      outlet_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+      staff_id INTEGER REFERENCES staff(id) ON DELETE SET NULL,
+      booking_date DATE NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      duration_mins INTEGER DEFAULT 45,
+      session_id TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'EXPIRED', 'CONVERTED', 'CANCELLED')),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -680,11 +732,11 @@ export async function initDatabase() {
     `);
 
     await pg.query(`
-      INSERT INTO coupons (business_id, code, discount_type, discount_value, discount_amount, min_spend)
+      INSERT INTO coupons (business_id, code, discount_type, discount_value, min_spend)
       VALUES
-      (${b1Id}, 'AURA100', 'flat', 100, 100, 1000),
-      (${b1Id}, 'LUXE15', 'percentage', 15, 15, 1500),
-      (${b2Id}, 'BARBER50', 'flat', 50, 50, 500)
+      (${b1Id}, 'AURA100', 'flat', 100, 1000),
+      (${b1Id}, 'LUXE15', 'percentage', 15, 1500),
+      (${b2Id}, 'BARBER50', 'flat', 50, 500)
     `);
 
     // Seed Gallery

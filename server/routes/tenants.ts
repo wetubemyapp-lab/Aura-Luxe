@@ -64,6 +64,8 @@ tenantsRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: R
       buffer_time_mins,
       deposit_required,
       deposit_percentage,
+      advance_payment_percentage,
+      home_service_travel_fee,
       features_config,
     } = req.body;
 
@@ -88,9 +90,11 @@ tenantsRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: R
            buffer_time_mins = COALESCE($17, buffer_time_mins),
            deposit_required = COALESCE($18, deposit_required),
            deposit_percentage = COALESCE($19, deposit_percentage),
-           features_config = COALESCE($20, features_config),
+           advance_payment_percentage = COALESCE($20, advance_payment_percentage),
+           home_service_travel_fee = COALESCE($21, home_service_travel_fee),
+           features_config = COALESCE($22, features_config),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $21
+       WHERE id = $23
        RETURNING *`,
       [
         name,
@@ -112,6 +116,8 @@ tenantsRouter.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: R
         buffer_time_mins,
         deposit_required,
         deposit_percentage,
+        advance_payment_percentage,
+        home_service_travel_fee,
         typeof features_config === 'object' ? JSON.stringify(features_config) : features_config,
         id,
       ]

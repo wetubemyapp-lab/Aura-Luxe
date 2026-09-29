@@ -66,7 +66,13 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   const [bookingMode, setBookingMode] = useState<'online' | 'home_service'>('online');
   const [homeAddress, setHomeAddress] = useState<string>('');
 
-  // Date & Time
+  // Date, Slot & 5-Minute Hold State
+  const [sessionId] = useState<string>(() => `sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`);
+  const [dynamicSlots, setDynamicSlots] = useState<Array<{ time: string; available: boolean; buffer_mins: number }>>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
+  const [activeHoldTimer, setActiveHoldTimer] = useState<number | null>(null);
+  const [holdErrorMessage, setHoldErrorMessage] = useState<string | null>(null);
+
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -131,12 +137,80 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     }
   }, [user]);
 
+  const selectedServices = services.filter((s) => selectedServiceIds.includes(s.id));
+  const selectedPackages = packages.filter((p) => selectedPackageIds.includes(p.id));
+
+  const totalServicesDuration = selectedServices.reduce((sum, s) => sum + (s.duration_mins || 30), 0);
+  const totalPackagesDuration = selectedPackages.reduce((sum, p) => sum + 90, 0);
+  const totalDurationMins = totalServicesDuration + totalPackagesDuration;
+
+  // Fetch Dynamic Slots based on Business Hours, Staff & Buffer rules
   useEffect(() => {
-    if (branches.length > 0 && !selectedBranchId) {
-      const main = branches.find((b) => b.is_main) || branches[0];
-      setSelectedBranchId(main.id);
+    async function fetchSlots() {
+      if (!activeBusiness) return;
+      setIsLoadingSlots(true);
+      setHoldErrorMessage(null);
+      try {
+        const queryParams = new URLSearchParams({
+          businessId: String(activeBusiness.id),
+          date: selectedDate,
+          duration: String(totalDurationMins || 45),
+        });
+        if (selectedBranchId) queryParams.append('branchId', String(selectedBranchId));
+        if (selectedStaffId) queryParams.append('staffId', String(selectedStaffId));
+
+        const res = await fetch(`/api/bookings/slots?${queryParams.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDynamicSlots(data.slots || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch dynamic slots:', err);
+      } finally {
+        setIsLoadingSlots(false);
+      }
     }
-  }, [branches, selectedBranchId]);
+    fetchSlots();
+  }, [activeBusiness, selectedDate, selectedBranchId, selectedStaffId, totalDurationMins]);
+
+  // Handle Slot Selection with Temporary 5-Minute Hold
+  const handleSelectSlot = async (timeSlot: string) => {
+    setHoldErrorMessage(null);
+    try {
+      const res = await fetch('/api/bookings/hold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: activeBusiness?.id || 1,
+          outlet_id: selectedBranchId || 1,
+          staff_id: selectedStaffId || null,
+          booking_date: selectedDate,
+          start_time: timeSlot,
+          duration_mins: totalDurationMins || 45,
+          session_id: sessionId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setHoldErrorMessage(data.error || 'This slot is no longer available. Please choose another slot.');
+      } else {
+        setSelectedTime(timeSlot);
+        setActiveHoldTimer(300); // 5 minutes UI countdown
+      }
+    } catch (err) {
+      setHoldErrorMessage('Could not place slot lock. Please try again.');
+    }
+  };
+
+  // Hold Timer Countdown Effect
+  useEffect(() => {
+    if (activeHoldTimer === null || activeHoldTimer <= 0) return;
+    const interval = setInterval(() => {
+      setActiveHoldTimer((prev) => (prev && prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeHoldTimer]);
 
   // Fetch Services, Packages & Staff Catalog
   useEffect(() => {
@@ -206,13 +280,6 @@ export const BookingPage: React.FC<BookingPageProps> = ({
       setSelectedPackageIds((prev) => prev.filter((pId) => pId !== id));
     }
   };
-
-  const selectedServices = services.filter((s) => selectedServiceIds.includes(s.id));
-  const selectedPackages = packages.filter((p) => selectedPackageIds.includes(p.id));
-
-  const totalServicesDuration = selectedServices.reduce((sum, s) => sum + (s.duration_mins || 30), 0);
-  const totalPackagesDuration = selectedPackages.reduce((sum, p) => sum + 90, 0); // Default 90m for packages
-  const totalDurationMins = totalServicesDuration + totalPackagesDuration;
 
   const baseServicesAmount = selectedServices.reduce((sum, s) => sum + parseFloat(String(s.price || 0)), 0);
   const basePackagesAmount = selectedPackages.reduce((sum, p) => sum + parseFloat(String(p.price || 0)), 0);
@@ -868,16 +935,38 @@ export const BookingPage: React.FC<BookingPageProps> = ({
 
         {/* STEP 3: DATE + TIME SLOT */}
         {currentStep === 3 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="border-b border-[#EAE5DF] pb-3">
-              <h2 className="font-serif font-bold text-lg text-[#1E2433]">
-                STEP 3: Schedule Appointment Date & Time Slot
-              </h2>
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAE5DF] pb-3">
+              <div>
+                <h2 className="font-serif font-bold text-lg text-[#1E2433]">
+                  STEP 3: Schedule Date & Time Slot
+                </h2>
+                <p className="text-xs text-[#566176]">
+                  Real-time slot locking active • Guaranteed 0-wait booking
+                </p>
+              </div>
+
+              {activeHoldTimer !== null && activeHoldTimer > 0 && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-mono font-bold">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                  <span>
+                    Slot Locked for {Math.floor(activeHoldTimer / 60)}:
+                    {activeHoldTimer % 60 < 10 ? `0${activeHoldTimer % 60}` : activeHoldTimer % 60}
+                  </span>
+                </div>
+              )}
             </div>
+
+            {holdErrorMessage && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{holdErrorMessage}</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-[#1E2433] mb-1">Appointment Date</label>
+                <label className="block text-xs font-bold text-[#1E2433] mb-1">Select Appointment Date</label>
                 <input
                   type="date"
                   min={new Date().toISOString().split('T')[0]}
@@ -888,23 +977,42 @@ export const BookingPage: React.FC<BookingPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1E2433] mb-1">Select Time Slot</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['10:00 AM', '11:30 AM', '01:00 PM', '02:30 PM', '04:00 PM', '05:30 PM', '07:00 PM'].map((tSlot) => (
-                    <button
-                      key={tSlot}
-                      type="button"
-                      onClick={() => setSelectedTime(tSlot)}
-                      className={`py-2 rounded-xl text-xs font-bold transition-all ${
-                        selectedTime === tSlot
-                          ? 'bg-[#1E2433] text-white shadow-xs'
-                          : 'bg-stone-50 text-stone-700 hover:bg-stone-100 border border-stone-200'
-                      }`}
-                    >
-                      {tSlot}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-[#1E2433]">
+                    Available Slots ({selectedDate})
+                  </label>
+                  <span className="text-[10px] text-[#8491A5] font-mono">+15m Buffer Rules</span>
                 </div>
+
+                {isLoadingSlots ? (
+                  <div className="py-8 text-center text-xs text-[#8491A5] flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#D66A78]" />
+                    <span>Calculating real-time slot availability...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
+                    {dynamicSlots.map((s) => {
+                      const isSelected = selectedTime === s.time;
+                      return (
+                        <button
+                          key={s.time}
+                          type="button"
+                          disabled={!s.available}
+                          onClick={() => handleSelectSlot(s.time)}
+                          className={`py-2 px-1 rounded-xl text-xs font-bold transition-all ${
+                            isSelected
+                              ? 'bg-[#1E2433] text-white shadow-xs ring-2 ring-[#D66A78]'
+                              : s.available
+                              ? 'bg-white hover:bg-[#FDF2F3] text-[#1E2433] border border-[#EAE5DF]'
+                              : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed opacity-60 line-through'
+                          }`}
+                        >
+                          {s.time}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
