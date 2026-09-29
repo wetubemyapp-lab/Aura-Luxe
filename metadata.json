@@ -1,0 +1,6 @@
+{
+  "name": "Aura Luxe Business Platform OS",
+  "description": "Universal Service & Appointment Business Platform OS for Barber, Salon, Beauty Parlour, Spa, Massage, Tattoo, Nail Studio, and Unisex Businesses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

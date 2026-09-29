@@ -1,0 +1,722 @@
+import { Router, Response } from 'express';
+import { pg, logAuditEvent } from '../db.ts';
+import { requireAuth, requireBusinessStaff, AuthenticatedRequest } from '../middleware/auth.ts';
+
+export const bookingsRouter = Router();
+
+// Helper to construct WhatsApp appointment notification link
+export function buildWhatsAppLink(phone: string | undefined, data: {
+  bookingId: number;
+  customerName: string;
+  businessName: string;
+  branchName?: string;
+  branchAddress?: string;
+  branchPhone?: string;
+  services: string[];
+  staffName?: string;
+  bookingDate: string;
+  bookingTime: string;
+  durationMins: number;
+  totalAmount: number;
+  paymentStatus: string;
+  paymentOption: string;
+  advancePaid: number;
+  balanceDue: number;
+  currency: string;
+  googleMapsUrl?: string;
+  bookingMode: string;
+  homeAddress?: string;
+}) {
+  const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+  const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+
+  let msg = `✨ *Appointment Confirmed - ${data.businessName}* ✨\n\n`;
+  msg += `Dear *${data.customerName}*,\n`;
+  msg += `Your booking *#${data.bookingId}* has been successfully reserved!\n\n`;
+  msg += `📋 *Services:* ${data.services.join(', ')}\n`;
+  msg += `⏱ *Duration:* ${data.durationMins} mins\n`;
+  msg += `📅 *Date:* ${data.bookingDate}\n`;
+  msg += `⏰ *Time:* ${data.bookingTime}\n`;
+  if (data.staffName) {
+    msg += `✂️ *Stylist / Specialist:* ${data.staffName}\n`;
+  }
+
+  if (data.bookingMode === 'home_service') {
+    msg += `🏠 *Service Type:* Home Service (At Doorstep)\n`;
+    msg += `📍 *Delivery Address:* ${data.homeAddress || 'As provided'}\n`;
+  } else {
+    msg += `📍 *Branch:* ${data.branchName || 'Main Studio'}\n`;
+    if (data.branchAddress) msg += `🏢 *Address:* ${data.branchAddress}\n`;
+    if (data.googleMapsUrl) msg += `🗺 *Directions:* ${data.googleMapsUrl}\n`;
+  }
+
+  msg += `\n💳 *Payment Details:*\n`;
+  msg += `• Total: ${data.currency}${data.totalAmount.toFixed(2)}\n`;
+  if (data.paymentOption === 'advance_online') {
+    msg += `• Advance Paid: ${data.currency}${data.advancePaid.toFixed(2)} (Paid Online)\n`;
+    msg += `• Balance Due at Venue: ${data.currency}${data.balanceDue.toFixed(2)}\n`;
+  } else if (data.paymentOption === 'pay_at_venue') {
+    msg += `• Payment Mode: Pay at Venue (${data.currency}${data.totalAmount.toFixed(2)})\n`;
+  } else {
+    msg += `• Payment Mode: Full Paid Online (${data.currency}${data.totalAmount.toFixed(2)})\n`;
+  }
+
+  msg += `\nNeed to reschedule? Reply directly to this WhatsApp message or call us at ${data.branchPhone || '+91 98765 43210'}.\n`;
+  msg += `We look forward to giving you an exceptional experience! ✨`;
+
+  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`;
+}
+
+// Customer: Get my bookings
+bookingsRouter.get('/my', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const userId = req.user!.id;
+    const result = await pg.query(
+      `SELECT b.*, s.title as service_title, s.price as service_price, s.image_url as service_image,
+              st.name as staff_name, br.name as branch_name, br.address as branch_address, br.google_maps_url,
+              bus.name as business_name, bus.primary_currency, bus.phone as business_phone
+       FROM bookings b
+       LEFT JOIN services s ON b.service_id = s.id
+       LEFT JOIN staff st ON b.staff_id = st.id
+       LEFT JOIN branches br ON b.branch_id = br.id
+       LEFT JOIN businesses bus ON b.business_id = bus.id
+       WHERE b.user_id = $1 AND b.is_archived = FALSE
+       ORDER BY b.booking_date DESC, b.booking_time DESC`,
+      [userId]
+    );
+
+    // Attach items for each booking
+    const bookings = await Promise.all(
+      result.rows.map(async (booking: any) => {
+        const items = await pg.query(
+          'SELECT * FROM booking_items WHERE booking_id = $1',
+          [booking.id]
+        );
+        const serviceTitles = items.rows.length > 0
+          ? items.rows.map((i: any) => i.service_title)
+          : [booking.service_title || 'General Service'];
+
+        const whatsappLink = buildWhatsAppLink(booking.customer_phone || req.user?.email, {
+          bookingId: booking.id,
+          customerName: booking.customer_name || req.user?.name || 'Valued Guest',
+          businessName: booking.business_name || 'Aura Luxe',
+          branchName: booking.branch_name,
+          branchAddress: booking.branch_address,
+          branchPhone: booking.business_phone,
+          services: serviceTitles,
+          staffName: booking.staff_name,
+          bookingDate: booking.booking_date?.toString().slice(0, 10),
+          bookingTime: booking.booking_time,
+          durationMins: booking.duration_mins,
+          totalAmount: parseFloat(booking.total_amount),
+          paymentStatus: booking.payment_status,
+          paymentOption: booking.payment_option || 'full_online',
+          advancePaid: parseFloat(booking.advance_amount_paid || '0'),
+          balanceDue: parseFloat(booking.venue_balance_due || '0'),
+          currency: booking.primary_currency || '₹',
+          googleMapsUrl: booking.google_maps_url,
+          bookingMode: booking.booking_mode || 'online',
+          homeAddress: booking.home_service_address,
+        });
+
+        return {
+          ...booking,
+          items: items.rows,
+          service_titles: serviceTitles,
+          whatsapp_url: whatsappLink,
+        };
+      })
+    );
+
+    return res.json({ bookings });
+  } catch (error: any) {
+    console.error('Fetch my bookings error:', error);
+    return res.status(500).json({ error: 'Failed to retrieve bookings' });
+  }
+});
+
+// Universal Booking Creation with Real Transactional Locking, Multi-Service, Multi-Mode & Flexible Payment
+bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  const client = pg;
+  try {
+    const userId = req.user!.id;
+    const {
+      business_id,
+      branch_id,
+      service_id,
+      service_ids = [],
+      staff_id,
+      booking_mode = 'online', // 'online' | 'home_service' | 'walk_in'
+      home_service_address,
+      booking_date,
+      booking_time,
+      payment_option = 'full_online', // 'full_online' | 'advance_online' | 'pay_at_venue'
+      addons = [],
+      coupon_code,
+      notes,
+      customer_name,
+      customer_phone,
+      customer_email,
+    } = req.body;
+
+    const allServiceIds: number[] = Array.from(
+      new Set(
+        [
+          service_id ? parseInt(service_id) : null,
+          ...(Array.isArray(service_ids) ? service_ids.map((id: any) => parseInt(id)) : []),
+        ].filter(Boolean) as number[]
+      )
+    );
+
+    if (allServiceIds.length === 0 || !booking_date || !booking_time) {
+      return res.status(400).json({ error: 'At least one service, a valid date, and a time slot are required.' });
+    }
+
+    if (booking_mode === 'home_service' && !home_service_address) {
+      return res.status(400).json({ error: 'Home address is required for Home Service appointments.' });
+    }
+
+    // 1. Transaction Start for real atomic locking
+    await client.query('BEGIN');
+
+    // 2. Fetch Services and calculate aggregate duration
+    const servicesRes = await client.query<any>(
+      `SELECT id, business_id, title, price, duration_mins, buffer_mins FROM services WHERE id = ANY($1::int[])`,
+      [allServiceIds]
+    );
+
+    if (servicesRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Selected services could not be found.' });
+    }
+
+    const bId = business_id || servicesRes.rows[0].business_id || 1;
+
+    // Fetch Business Settings & Platform Commission
+    const busRes = await client.query<any>(
+      `SELECT id, name, tax_rate, deposit_required, deposit_percentage, advance_payment_percentage,
+              allow_home_service, home_service_travel_fee, platform_commission_pct, primary_currency
+       FROM businesses WHERE id = $1`,
+      [bId]
+    );
+    const business = busRes.rows[0];
+    const taxRate = parseFloat(business?.tax_rate || '5.00') / 100;
+    const platformCommissionPct = parseFloat(business?.platform_commission_pct || '5.00') / 100;
+    const advancePct = parseFloat(business?.advance_payment_percentage || '20.00') / 100;
+
+    let totalDurationMins = 0;
+    let baseServicesAmount = 0;
+    for (const srv of servicesRes.rows) {
+      totalDurationMins += parseInt(srv.duration_mins || 30);
+      baseServicesAmount += parseFloat(srv.price || 0);
+    }
+    // Add buffer time
+    const bufferMins = parseInt(servicesRes.rows[0]?.buffer_mins || 10);
+    const totalSlotDuration = totalDurationMins + bufferMins;
+
+    // 3. Real Transactional Conflict Detection with Row Locking
+    if (staff_id) {
+      // Check for overlapping bookings for this staff on this date
+      const overlapQuery = `
+        SELECT id, booking_time, duration_mins FROM bookings
+        WHERE staff_id = $1
+          AND booking_date = $2
+          AND status NOT IN ('cancelled', 'refunded')
+          AND is_archived = FALSE
+          AND booking_time = $3
+        FOR UPDATE
+      `;
+      const conflictRes = await client.query<any>(overlapQuery, [staff_id, booking_date, booking_time]);
+
+      if (conflictRes.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'The requested specialist is already reserved for this slot. Please select another time or specialist.',
+        });
+      }
+    }
+
+    // 4. Financial Calculation
+    const addonsAmount = addons.reduce((sum: number, item: any) => sum + parseFloat(item.price || 0), 0);
+    const travelFee = (booking_mode === 'home_service') ? parseFloat(business?.home_service_travel_fee || '150.00') : 0;
+    const subtotal = baseServicesAmount + addonsAmount + travelFee;
+
+    // Coupon discount logic
+    let discountAmount = 0;
+    let validatedCouponCode: string | null = null;
+    if (coupon_code) {
+      const couponRes = await client.query<any>(
+        'SELECT * FROM coupons WHERE business_id = $1 AND UPPER(code) = UPPER($2) AND is_active = TRUE AND is_archived = FALSE',
+        [bId, coupon_code.trim()]
+      );
+      if (couponRes.rows.length > 0) {
+        const coupon = couponRes.rows[0];
+        if (subtotal >= parseFloat(coupon.min_spend || '0')) {
+          validatedCouponCode = coupon.code;
+          if (coupon.discount_type === 'flat') {
+            discountAmount = Math.min(parseFloat(coupon.discount_value), subtotal);
+          } else {
+            discountAmount = parseFloat(((subtotal * parseFloat(coupon.discount_value)) / 100).toFixed(2));
+          }
+        }
+      }
+    }
+
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
+    const taxAmount = parseFloat((taxableAmount * taxRate).toFixed(2));
+    const totalAmount = parseFloat((taxableAmount + taxAmount).toFixed(2));
+
+    // Calculate advance payment vs venue balance
+    let advanceAmountPaid = 0;
+    let venueBalanceDue = totalAmount;
+    let paymentStatus = 'unpaid';
+
+    if (payment_option === 'full_online') {
+      advanceAmountPaid = totalAmount;
+      venueBalanceDue = 0;
+      paymentStatus = 'paid';
+    } else if (payment_option === 'advance_online') {
+      advanceAmountPaid = parseFloat((totalAmount * advancePct).toFixed(2));
+      venueBalanceDue = parseFloat((totalAmount - advanceAmountPaid).toFixed(2));
+      paymentStatus = 'deposit_paid';
+    } else {
+      // pay_at_venue
+      advanceAmountPaid = 0;
+      venueBalanceDue = totalAmount;
+      paymentStatus = 'unpaid';
+    }
+
+    // 5. Insert Booking Record
+    const primaryServiceId = allServiceIds[0];
+    const initialStatus = (booking_mode === 'walk_in') ? 'in_service' : 'confirmed';
+
+    const insertBookingQuery = `
+      INSERT INTO bookings (
+        business_id, branch_id, user_id, service_id, staff_id,
+        booking_mode, home_service_address, travel_fee,
+        booking_date, booking_time, duration_mins,
+        status, payment_status, payment_option,
+        service_amount, addons_amount, discount_amount, tax_amount,
+        advance_amount_paid, venue_balance_due, total_amount,
+        addons_json, coupon_code, notes,
+        customer_name, customer_phone, customer_email
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
+      ) RETURNING *
+    `;
+
+    const bookingRes = await client.query<any>(insertBookingQuery, [
+      bId,
+      branch_id || 1,
+      userId,
+      primaryServiceId,
+      staff_id || null,
+      booking_mode,
+      home_service_address || null,
+      travelFee,
+      booking_date,
+      booking_time,
+      totalDurationMins,
+      initialStatus,
+      paymentStatus,
+      payment_option,
+      baseServicesAmount,
+      addonsAmount,
+      discountAmount,
+      taxAmount,
+      advanceAmountPaid,
+      venueBalanceDue,
+      totalAmount,
+      JSON.stringify(addons),
+      validatedCouponCode,
+      notes || null,
+      customer_name || req.user?.name,
+      customer_phone || null,
+      customer_email || req.user?.email,
+    ]);
+
+    const booking = bookingRes.rows[0];
+
+    // 6. Insert Multiple Booking Items
+    for (const srv of servicesRes.rows) {
+      await client.query(
+        `INSERT INTO booking_items (booking_id, service_id, service_title, price, duration_mins)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [booking.id, srv.id, srv.title, srv.price, srv.duration_mins]
+      );
+    }
+
+    // 7. Ledger & Platform Commission Integration
+    const collectedAmount = (payment_option === 'full_online') ? totalAmount : advanceAmountPaid;
+    if (collectedAmount > 0) {
+      const platformFee = parseFloat((collectedAmount * platformCommissionPct).toFixed(2));
+      const netMerchant = parseFloat((collectedAmount - platformFee).toFixed(2));
+
+      await client.query(
+        `INSERT INTO ledger_entries (
+          business_id, booking_id, entry_type, payment_method, amount,
+          platform_fee_amount, merchant_net_amount, status, reference_no, notes
+        ) VALUES ($1, $2, $3, 'online', $4, $5, $6, 'completed', $7, $8)`,
+        [
+          bId,
+          booking.id,
+          (payment_option === 'full_online') ? 'payment' : 'deposit',
+          collectedAmount,
+          platformFee,
+          netMerchant,
+          `TXN-${Date.now().toString().slice(-8)}`,
+          `${payment_option === 'full_online' ? 'Full' : 'Advance'} online collection for Booking #${booking.id}`
+        ]
+      );
+    }
+
+    // 8. Commit the Atomic Transaction
+    await client.query('COMMIT');
+
+    // 9. Fetch branch details for WhatsApp notification
+    const branchRes = await pg.query<any>('SELECT name, address, phone, google_maps_url FROM branches WHERE id = $1', [branch_id || 1]);
+    const branch = branchRes.rows[0];
+
+    const staffRes = staff_id ? await pg.query<any>('SELECT name FROM staff WHERE id = $1', [staff_id]) : { rows: [] as any[] };
+    const staffName = staffRes.rows[0]?.name;
+
+    const serviceTitles = servicesRes.rows.map((s: any) => s.title);
+
+    const whatsappLink = buildWhatsAppLink(customer_phone || req.user?.email, {
+      bookingId: booking.id,
+      customerName: customer_name || req.user?.name || 'Valued Guest',
+      businessName: business?.name || 'Aura Luxe',
+      branchName: branch?.name,
+      branchAddress: branch?.address,
+      branchPhone: branch?.phone,
+      services: serviceTitles,
+      staffName,
+      bookingDate: booking_date,
+      bookingTime: booking_time,
+      durationMins: totalDurationMins,
+      totalAmount,
+      paymentStatus,
+      paymentOption: payment_option,
+      advancePaid: advanceAmountPaid,
+      balanceDue: venueBalanceDue,
+      currency: business?.primary_currency || '₹',
+      googleMapsUrl: branch?.google_maps_url,
+      bookingMode: booking_mode,
+      homeAddress: home_service_address,
+    });
+
+    // 10. Audit Logging
+    await logAuditEvent({
+      business_id: bId,
+      user_id: userId,
+      user_name: customer_name || req.user?.name,
+      user_role: req.user?.role,
+      action: 'BOOKING_CREATED',
+      entity_type: 'booking',
+      entity_id: booking.id,
+      details: {
+        services: serviceTitles,
+        totalAmount,
+        booking_mode,
+        payment_option,
+        branch_id,
+      },
+    });
+
+    return res.status(201).json({
+      booking: {
+        ...booking,
+        service_titles: serviceTitles,
+        whatsapp_url: whatsappLink,
+      },
+      message: 'Booking successfully confirmed!',
+      whatsapp_url: whatsappLink,
+    });
+  } catch (error: any) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Create booking transaction error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to process booking transaction' });
+  }
+});
+
+// Admin / Receptionist: Walk-In Quick Booking
+bookingsRouter.post('/walk-in', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const {
+      business_id = 1,
+      branch_id = 1,
+      customer_name,
+      customer_phone,
+      service_ids = [],
+      staff_id,
+      payment_method = 'cash',
+      paid_amount,
+      notes,
+    } = req.body;
+
+    if (!customer_name || service_ids.length === 0) {
+      return res.status(400).json({ error: 'Customer name and at least one service are required for Walk-Ins.' });
+    }
+
+    const servicesRes = await pg.query<any>(
+      `SELECT id, title, price, duration_mins FROM services WHERE id = ANY($1::int[])`,
+      [service_ids]
+    );
+
+    let totalDuration = 0;
+    let totalAmount = 0;
+    for (const srv of servicesRes.rows) {
+      totalDuration += parseInt(srv.duration_mins || 30);
+      totalAmount += parseFloat(srv.price || 0);
+    }
+
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const insertRes = await pg.query<any>(
+      `INSERT INTO bookings (
+        business_id, branch_id, user_id, service_id, staff_id,
+        booking_mode, booking_date, booking_time, duration_mins,
+        status, payment_status, payment_option,
+        service_amount, total_amount, advance_amount_paid, venue_balance_due,
+        customer_name, customer_phone, notes
+      ) VALUES ($1, $2, $3, $4, $5, 'walk_in', $6, $7, $8, 'in_service', 'paid', 'pay_at_venue', $9, $10, $11, 0, $12, $13, $14)
+      RETURNING *`,
+      [
+        business_id,
+        branch_id,
+        req.user!.id,
+        service_ids[0],
+        staff_id || null,
+        todayDate,
+        nowTime,
+        totalDuration,
+        totalAmount,
+        totalAmount,
+        paid_amount || totalAmount,
+        customer_name,
+        customer_phone || null,
+        notes || 'Walk-in client registered by desk',
+      ]
+    );
+
+    const booking = insertRes.rows[0];
+
+    // Insert items
+    for (const srv of servicesRes.rows) {
+      await pg.query(
+        `INSERT INTO booking_items (booking_id, service_id, service_title, price, duration_mins)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [booking.id, srv.id, srv.title, srv.price, srv.duration_mins]
+      );
+    }
+
+    // Record ledger entry
+    await pg.query(
+      `INSERT INTO ledger_entries (
+        business_id, booking_id, entry_type, payment_method, amount, merchant_net_amount, status, reference_no, notes
+      ) VALUES ($1, $2, 'payment', $3, $4, $4, 'completed', $5, 'Walk-in direct receipt')`,
+      [business_id, booking.id, payment_method, totalAmount, `WLK-${Date.now().toString().slice(-6)}`]
+    );
+
+    await logAuditEvent({
+      business_id,
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      user_role: req.user!.role,
+      action: 'WALK_IN_CREATED',
+      entity_type: 'booking',
+      entity_id: booking.id,
+      details: { customer_name, totalAmount, payment_method },
+    });
+
+    return res.status(201).json({ booking, message: 'Walk-in booking created and queued in-service' });
+  } catch (error: any) {
+    console.error('Walk-in booking error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to create walk-in booking' });
+  }
+});
+
+// Admin/Staff: Get all bookings (with search, branch, status & archived filter)
+bookingsRouter.get('/all', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const businessId = req.query.businessId ? parseInt(req.query.businessId as string) : 1;
+    const branchId = req.query.branchId ? parseInt(req.query.branchId as string) : null;
+    const status = req.query.status as string;
+    const includeArchived = req.query.archived === 'true';
+
+    let query = `
+      SELECT b.*,
+             u.name as registered_user_name, u.email as registered_user_email,
+             s.title as service_title, st.name as staff_name,
+             br.name as branch_name, bus.name as business_name, bus.primary_currency, bus.phone as business_phone
+      FROM bookings b
+      LEFT JOIN users u ON b.user_id = u.id
+      LEFT JOIN services s ON b.service_id = s.id
+      LEFT JOIN staff st ON b.staff_id = st.id
+      LEFT JOIN branches br ON b.branch_id = br.id
+      LEFT JOIN businesses bus ON b.business_id = bus.id
+      WHERE b.business_id = $1
+    `;
+    const params: any[] = [businessId];
+
+    if (!includeArchived) {
+      query += ` AND b.is_archived = FALSE`;
+    } else {
+      query += ` AND b.is_archived = TRUE`;
+    }
+
+    if (branchId) {
+      params.push(branchId);
+      query += ` AND b.branch_id = $${params.length}`;
+    }
+
+    if (status) {
+      params.push(status);
+      query += ` AND b.status = $${params.length}`;
+    }
+
+    query += ' ORDER BY b.booking_date DESC, b.booking_time DESC';
+
+    const result = await pg.query(query, params);
+
+    // Attach items & WhatsApp link for each
+    const bookings = await Promise.all(
+      result.rows.map(async (b: any) => {
+        const items = await pg.query('SELECT * FROM booking_items WHERE booking_id = $1', [b.id]);
+        const serviceTitles = items.rows.length > 0 ? items.rows.map((i: any) => i.service_title) : [b.service_title || 'Service'];
+
+        const whatsappLink = buildWhatsAppLink(b.customer_phone || b.registered_user_email, {
+          bookingId: b.id,
+          customerName: b.customer_name || b.registered_user_name || 'Guest',
+          businessName: b.business_name || 'Aura Luxe',
+          branchName: b.branch_name,
+          branchAddress: b.branch_address,
+          branchPhone: b.business_phone,
+          services: serviceTitles,
+          staffName: b.staff_name,
+          bookingDate: b.booking_date?.toString().slice(0, 10),
+          bookingTime: b.booking_time,
+          durationMins: b.duration_mins,
+          totalAmount: parseFloat(b.total_amount),
+          paymentStatus: b.payment_status,
+          paymentOption: b.payment_option || 'full_online',
+          advancePaid: parseFloat(b.advance_amount_paid || '0'),
+          balanceDue: parseFloat(b.venue_balance_due || '0'),
+          currency: b.primary_currency || '₹',
+          googleMapsUrl: b.google_maps_url,
+          bookingMode: b.booking_mode || 'online',
+          homeAddress: b.home_service_address,
+        });
+
+        return {
+          ...b,
+          items: items.rows,
+          service_titles: serviceTitles,
+          whatsapp_url: whatsappLink,
+        };
+      })
+    );
+
+    return res.json({ bookings });
+  } catch (error: any) {
+    console.error('Fetch all bookings error:', error);
+    return res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+// Admin/Staff: Update booking status workflow (pending -> confirmed -> in_service -> completed -> cancelled -> no_show)
+bookingsRouter.put('/:id/status', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const { status, payment_status } = req.body;
+
+    const validStatuses = ['pending', 'confirmed', 'in_service', 'completed', 'cancelled', 'no_show'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid booking status' });
+    }
+
+    const result = await pg.query<any>(
+      `UPDATE bookings
+       SET status = COALESCE($1, status),
+           payment_status = COALESCE($2, payment_status)
+       WHERE id = $3
+       RETURNING *`,
+      [status || null, payment_status || null, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const updated = result.rows[0];
+
+    await logAuditEvent({
+      business_id: (updated as any).business_id,
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      user_role: req.user!.role,
+      action: 'BOOKING_STATUS_UPDATED',
+      entity_type: 'booking',
+      entity_id: parseInt(id),
+      details: { new_status: status, payment_status },
+    });
+
+    return res.json({ booking: updated, message: `Booking marked as ${status}` });
+  } catch (error: any) {
+    console.error('Update booking status error:', error);
+    return res.status(500).json({ error: 'Failed to update booking status' });
+  }
+});
+
+// Archive / Soft Delete a booking
+bookingsRouter.patch('/:id/archive', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const result = await pg.query<any>(
+      `UPDATE bookings SET is_archived = TRUE, deleted_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+
+    await logAuditEvent({
+      business_id: (result.rows[0] as any).business_id,
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      user_role: req.user!.role,
+      action: 'BOOKING_ARCHIVED',
+      entity_type: 'booking',
+      entity_id: parseInt(id),
+    });
+
+    return res.json({ message: 'Booking archived successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to archive booking' });
+  }
+});
+
+// Restore an archived booking
+bookingsRouter.patch('/:id/restore', requireBusinessStaff, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const result = await pg.query<any>(
+      `UPDATE bookings SET is_archived = FALSE, deleted_at = NULL WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+
+    await logAuditEvent({
+      business_id: (result.rows[0] as any).business_id,
+      user_id: req.user!.id,
+      user_name: req.user!.name,
+      user_role: req.user!.role,
+      action: 'BOOKING_RESTORED',
+      entity_type: 'booking',
+      entity_id: parseInt(id),
+    });
+
+    return res.json({ message: 'Booking restored successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to restore booking' });
+  }
+});
