@@ -5,8 +5,6 @@ import { hasPermission } from '../utils/permissions.ts';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'aura-luxe-secret-key-2026-production';
 
-export type PlatformRole = 'customer' | 'owner' | 'admin' | 'branch_manager' | 'staff' | 'receptionist';
-
 export interface AuthUserPayload {
   id: number;
   email: string;

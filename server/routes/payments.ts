@@ -197,6 +197,10 @@ paymentsRouter.post('/verify', async (req, res): Promise<any> => {
     if (bookingRes.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
     const booking = bookingRes.rows[0];
 
+    const isMock = razorpay_payment_id === 'mock_cash' || razorpay_payment_id === 'mock_upi';
+    const gatewayName = isMock ? 'Manual/Test' : 'Razorpay';
+    const finalTransactionId = isMock ? `mock_tx_${Date.now()}` : (razorpay_payment_id || `pay_${Date.now()}`);
+
     // Log transaction
     await pg.query(
       `INSERT INTO payment_transactions (
@@ -207,20 +211,48 @@ paymentsRouter.post('/verify', async (req, res): Promise<any> => {
         booking.business_id,
         booking.id,
         keyToUse,
-        'Razorpay',
-        razorpay_payment_id || `pay_${Date.now()}`,
+        gatewayName,
+        finalTransactionId,
         booking.advance_amount_paid > 0 ? booking.advance_amount_paid : booking.total_amount,
         'PAID',
-        JSON.stringify({ razorpay_order_id, razorpay_payment_id, razorpay_signature }),
+        JSON.stringify({ razorpay_order_id, razorpay_payment_id, razorpay_signature, is_mock: isMock }),
       ]
     );
 
     const targetPaymentStatus = booking.payment_option === 'advance_online' ? 'PARTIALLY_PAID' : 'PAID';
 
     await pg.query(
-      `UPDATE bookings SET payment_status = $1, status = 'CONFIRMED' WHERE id = $2`,
+      `UPDATE bookings SET payment_status = $1, status = 'confirmed' WHERE id = $2`,
       [targetPaymentStatus, booking.id]
     );
+
+    // Record Ledger Entry now that payment is verified
+    const collectedAmount = (booking.payment_option === 'full_online') ? parseFloat(booking.total_amount) : parseFloat(booking.advance_amount_paid || '0');
+    
+    if (collectedAmount > 0) {
+      // Fetch platform commission % from business
+      const busRes = await pg.query<any>('SELECT platform_commission_pct FROM businesses WHERE id = $1', [booking.business_id]);
+      const platformPct = parseFloat(busRes.rows[0]?.platform_commission_pct || '5.00') / 100;
+      const platformFee = parseFloat((collectedAmount * platformPct).toFixed(2));
+      const netMerchant = parseFloat((collectedAmount - platformFee).toFixed(2));
+
+      await pg.query(
+        `INSERT INTO ledger_entries (
+          business_id, booking_id, entry_type, payment_method, amount,
+          platform_fee_amount, merchant_net_amount, status, reference_no, notes
+        ) VALUES ($1, $2, $3, 'online', $4, $5, $6, 'completed', $7, $8)`,
+        [
+          booking.business_id,
+          booking.id,
+          (booking.payment_option === 'full_online') ? 'payment' : 'deposit',
+          collectedAmount,
+          platformFee,
+          netMerchant,
+          finalTransactionId,
+          `Verified online collection for Booking #${booking.id} (${gatewayName})`
+        ]
+      );
+    }
 
     return res.json({
       success: true,
@@ -235,7 +267,87 @@ paymentsRouter.post('/verify', async (req, res): Promise<any> => {
 });
 
 /**
- * 4. OWNER CANCELLATION & REFUND ENGINE
+ * 4. MOCK PAYMENT WEBHOOK (For Testing Only)
+ * Simulates a successful gateway callback for a specific booking.
+ */
+paymentsRouter.post('/mock-webhook', async (req, res): Promise<any> => {
+  try {
+    const { booking_id, amount, status = 'PAID', gateway = 'MockGateway' } = req.body;
+    if (!booking_id) return res.status(400).json({ error: 'booking_id is required' });
+
+    const bookingRes = await pg.query<any>('SELECT * FROM bookings WHERE id = $1', [booking_id]);
+    if (bookingRes.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+    const booking = bookingRes.rows[0];
+
+    const transaction_id = `mock_hook_${Date.now()}`;
+    const idempotency_key = `mock_key_${booking_id}_${Date.now()}`;
+
+    await pg.query(
+      `INSERT INTO payment_transactions (
+        business_id, booking_id, idempotency_key, gateway, transaction_id,
+        amount, status, raw_payload
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        booking.business_id,
+        booking.id,
+        idempotency_key,
+        gateway,
+        transaction_id,
+        amount || booking.total_amount,
+        status,
+        JSON.stringify({ is_mock_webhook: true, source: 'development_tool' }),
+      ]
+    );
+
+    const newPaymentStatus = status === 'PAID' ? (booking.payment_option === 'advance_online' ? 'PARTIALLY_PAID' : 'PAID') : 'FAILED';
+    const newBookingStatus = status === 'PAID' ? 'confirmed' : 'pending';
+
+    await pg.query(
+      `UPDATE bookings SET payment_status = $1, status = $2 WHERE id = $3`,
+      [newPaymentStatus, newBookingStatus, booking.id]
+    );
+
+    // Record Ledger if paid
+    if (status === 'PAID') {
+      const collectedAmount = (booking.payment_option === 'full_online') ? parseFloat(booking.total_amount) : parseFloat(booking.advance_amount_paid || '0');
+      if (collectedAmount > 0) {
+        const busRes = await pg.query<any>('SELECT platform_commission_pct FROM businesses WHERE id = $1', [booking.business_id]);
+        const platformPct = parseFloat(busRes.rows[0]?.platform_commission_pct || '5.00') / 100;
+        const platformFee = parseFloat((collectedAmount * platformPct).toFixed(2));
+        const netMerchant = parseFloat((collectedAmount - platformFee).toFixed(2));
+
+        await pg.query(
+          `INSERT INTO ledger_entries (
+            business_id, booking_id, entry_type, payment_method, amount,
+            platform_fee_amount, merchant_net_amount, status, reference_no, notes
+          ) VALUES ($1, $2, $3, 'online', $4, $5, $6, 'completed', $7, $8)`,
+          [
+            booking.business_id,
+            booking.id,
+            (booking.payment_option === 'full_online') ? 'payment' : 'deposit',
+            collectedAmount,
+            platformFee,
+            netMerchant,
+            transaction_id,
+            `Mock webhook collection for Booking #${booking.id}`
+          ]
+        );
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Mock webhook processed for Booking #${booking.id}`,
+      transaction_id,
+      payment_status: newPaymentStatus
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Mock webhook failed' });
+  }
+});
+
+/**
+ * 5. OWNER CANCELLATION & REFUND ENGINE
  * Initiates instant refund request based on tenant configurable policy.
  */
 paymentsRouter.post('/cancel-and-refund', async (req, res): Promise<any> => {

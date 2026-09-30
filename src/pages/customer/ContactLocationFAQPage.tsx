@@ -38,24 +38,34 @@ export const ContactLocationFAQPage: React.FC<ContactLocationFAQPageProps> = ({
 
   const faqs = [
     {
-      q: 'How do advance deposits work for appointments?',
-      a: `To respect our master specialists' time and prevent schedule blackouts, we require a nominal advance deposit (typically 20%). The remaining balance can be settled at the studio counter via Cash, POS Card terminal, or instant UPI QR code.`,
+      q: language === 'hi' ? 'अपॉइंटमेंट के लिए अग्रिम जमा राशि (Advance Deposit) कैसे काम करती है?' : 'How do advance deposits work for appointments?',
+      a: language === 'hi' 
+        ? `हमारे विशेषज्ञों के समय का सम्मान करने और शेड्यूल को सुरक्षित रखने के लिए, हम एक मामूली अग्रिम जमा (आमतौर पर 20%) की आवश्यकता रखते हैं। शेष राशि का भुगतान स्टूडियो काउंटर पर नकद, कार्ड या यूपीआई क्यूआर कोड के माध्यम से किया जा सकता है।`
+        : `To respect our master specialists' time and prevent schedule blackouts, we require a nominal advance deposit (typically 20%). The remaining balance can be settled at the studio counter via Cash, POS Card terminal, or instant UPI QR code.`,
     },
     {
-      q: 'Can I reschedule or cancel my reservation?',
-      a: 'Yes, reservations can be rescheduled or cancelled with full credit up to 4 hours prior to the scheduled start time directly from your My Bookings portal.',
+      q: language === 'hi' ? 'क्या मैं अपनी बुकिंग को फिर से शेड्यूल या रद्द कर सकता हूँ?' : 'Can I reschedule or cancel my reservation?',
+      a: language === 'hi'
+        ? 'हाँ, बुकिंग को आपके "My Bookings" पोर्टल से निर्धारित समय से 4 घंटे पहले तक पूर्ण क्रेडिट के साथ फिर से शेड्यूल या रद्द किया जा सकता है।'
+        : 'Yes, reservations can be rescheduled or cancelled with full credit up to 4 hours prior to the scheduled start time directly from your My Bookings portal.',
     },
     {
-      q: 'Are home doorstep services available in my area?',
-      a: 'We offer full mobile doorstep suites within a 15km radius of our branches. Our practitioners travel with complete single-use sanitized kits, portable styling lights, and protective covers.',
+      q: language === 'hi' ? 'क्या मेरे क्षेत्र में होम सर्विस (Doorstep Services) उपलब्ध है?' : 'Are home doorstep services available in my area?',
+      a: language === 'hi'
+        ? 'हम अपनी शाखाओं के 15 किमी के दायरे में पूर्ण मोबाइल डोरस्टेप सेवाएं प्रदान करते हैं। हमारे विशेषज्ञ पूरी तरह से स्वच्छ किट और पोर्टेबल लाइट के साथ यात्रा करते हैं।'
+        : 'We offer full mobile doorstep suites within a 15km radius of our branches. Our practitioners travel with complete single-use sanitized kits, portable styling lights, and protective covers.',
     },
     {
-      q: 'What hygiene standards are practiced?',
-      a: 'We strictly maintain medical-grade sterilization: all metal instruments undergo multi-stage ultrasonic cleaning and medical autoclave sterilization sealed in single-use pouches opened in front of you.',
+      q: language === 'hi' ? 'हाइजीन (स्वच्छता) के क्या मानक अपनाए जाते हैं?' : 'What hygiene standards are practiced?',
+      a: language === 'hi'
+        ? 'हम चिकित्सा-ग्रेड नसबंदी (Sterilization) बनाए रखते हैं: सभी उपकरणों की अल्ट्रासोनिक सफाई की जाती है और आपके सामने खोले गए सिंगल-यूज़ पाउच में सील किया जाता है।'
+        : 'We strictly maintain medical-grade sterilization: all metal instruments undergo multi-stage ultrasonic cleaning and medical autoclave sterilization sealed in single-use pouches opened in front of you.',
     },
     {
-      q: 'Do you accommodate walk-in guests without reservations?',
-      a: 'While appointments have first priority, we maintain a live walk-in digital queue at all front desks to accommodate immediate openings.',
+      q: language === 'hi' ? 'क्या बिना रिजर्वेशन के वॉक-इन मेहमान आ सकते हैं?' : 'Do you accommodate walk-in guests without reservations?',
+      a: language === 'hi'
+        ? 'हालांकि अपॉइंटमेंट को पहली प्राथमिकता दी जाती है, हम तत्काल स्लॉट के लिए सभी फ्रंट डेस्क पर लाइव वॉक-इन डिजिटल कतार बनाए रखते हैं।'
+        : 'While appointments have first priority, we maintain a live walk-in digital queue at all front desks to accommodate immediate openings.',
     },
   ];
 

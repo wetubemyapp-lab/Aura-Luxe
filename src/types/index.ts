@@ -1,4 +1,5 @@
 export type UserRole = 'customer' | 'owner' | 'admin' | 'branch_manager' | 'staff' | 'receptionist';
+export type PlatformRole = UserRole;
 
 export interface User {
   id: number;
@@ -462,4 +463,5 @@ export type AdminPageTab =
   | 'ai-copilot'
   | 'notifications'
   | 'audit-logs'
-  | 'settings';
+  | 'settings'
+  | 'website-mgmt';

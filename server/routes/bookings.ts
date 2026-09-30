@@ -97,24 +97,46 @@ bookingsRouter.get('/slots', async (req, res): Promise<any> => {
     }
 
     // Query active holds and confirmed bookings for this date to purge occupied slots
+    // We need to check if a potential slot overlaps with any existing booking's time window
     const occupiedRes = await pg.query<any>(
-      `SELECT booking_time FROM bookings
+      `SELECT start_at, end_at FROM bookings
        WHERE business_id = $1 AND booking_date = $2::date
          AND status NOT IN ('cancelled', 'refunded') AND is_archived = FALSE
          AND ($3::int IS NULL OR staff_id = $3)
        UNION
-       SELECT start_time as booking_time FROM booking_holds
+       SELECT booking_date + start_time::time as start_at, booking_date + (start_time::time + (duration_mins || ' minutes')::interval) as end_at FROM booking_holds
        WHERE business_id = $1 AND booking_date = $2::date AND expires_at > CURRENT_TIMESTAMP AND status = 'ACTIVE'
          AND ($3::int IS NULL OR staff_id = $3)`,
       [businessId, date, staffId]
     );
 
-    const occupiedTimes = new Set(occupiedRes.rows.map((r: any) => r.booking_time));
-    const availableSlots = baseSlots.map((slotTime) => ({
-      time: slotTime,
-      available: !occupiedTimes.has(slotTime),
-      buffer_mins: bufferTime,
-    }));
+    const parseSlot = (dateStr: string, timeStr: string) => {
+      const [time, period] = timeStr.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      if (period === 'PM' && hours < 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      const d = new Date(dateStr);
+      d.setHours(hours, minutes, 0, 0);
+      return d;
+    };
+
+    const availableSlots = baseSlots.map((slotTime) => {
+      const slotStart = parseSlot(date, slotTime);
+      const slotEnd = new Date(slotStart.getTime() + (requestedDuration + bufferTime) * 60000);
+      
+      const isOccupied = occupiedRes.rows.some((occ: any) => {
+        const occStart = new Date(occ.start_at);
+        const occEnd = new Date(occ.end_at);
+        // Overlap logic: (StartA < EndB) and (EndA > StartB)
+        return (slotStart < occEnd) && (slotEnd > occStart);
+      });
+
+      return {
+        time: slotTime,
+        available: !isOccupied,
+        buffer_mins: bufferTime,
+      };
+    });
 
     return res.json({
       date,
@@ -355,8 +377,22 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     // 3. Real Transactional Conflict Detection & Auto Staff Assignment
     let assignedStaffId = staff_id ? parseInt(staff_id) : null;
 
+    // Helper to calculate start and end timestamps
+    const parseTime = (dateStr: string, timeStr: string) => {
+      const [time, period] = timeStr.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      if (period === 'PM' && hours < 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      const d = new Date(dateStr);
+      d.setHours(hours, minutes, 0, 0);
+      return d;
+    };
+
+    const startAt = parseTime(booking_date, booking_time);
+    const endAt = new Date(startAt.getTime() + totalSlotDuration * 60000);
+
     if (!assignedStaffId) {
-      // Auto-assign qualified staff member based on outlet, active status, and slot availability
+      // Auto-assign qualified staff member based on outlet, active status, and REAL slot availability (no overlaps)
       const autoStaffQuery = `
         SELECT s.id FROM staff s
         WHERE s.business_id = $1
@@ -366,11 +402,12 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
           AND s.id NOT IN (
             SELECT b.staff_id FROM bookings b
             WHERE b.business_id = $1
-              AND b.booking_date = $3
-              AND b.booking_time = $4
               AND b.status NOT IN ('cancelled', 'refunded')
               AND b.is_archived = FALSE
               AND b.staff_id IS NOT NULL
+              AND (
+                (b.start_at, b.end_at) OVERLAPS ($3, $4)
+              )
           )
         ORDER BY RANDOM()
         LIMIT 1
@@ -378,14 +415,14 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
       const autoStaffRes = await client.query<any>(autoStaffQuery, [
         bId,
         branch_id ? parseInt(branch_id) : null,
-        booking_date,
-        booking_time,
+        startAt.toISOString(),
+        endAt.toISOString(),
       ]);
 
       if (autoStaffRes.rows.length > 0) {
         assignedStaffId = autoStaffRes.rows[0].id;
       } else {
-        // Fallback: assign first available active staff member
+        // Fallback: assign first available active staff member (might still conflict, but handled by overlap check below if they are busy)
         const fallbackStaffRes = await client.query<any>(
           `SELECT id FROM staff WHERE business_id = $1 AND is_active = TRUE AND is_archived = FALSE ORDER BY id ASC LIMIT 1`,
           [bId]
@@ -394,18 +431,21 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
           assignedStaffId = fallbackStaffRes.rows[0].id;
         }
       }
-    } else {
-      // Check for overlapping bookings for explicitly chosen staff
+    }
+
+    // Final Overlap Validation for the specific staff member (Atomic Locking)
+    if (assignedStaffId) {
       const overlapQuery = `
-        SELECT id, booking_time, duration_mins FROM bookings
+        SELECT id FROM bookings
         WHERE staff_id = $1
-          AND booking_date = $2
           AND status NOT IN ('cancelled', 'refunded')
           AND is_archived = FALSE
-          AND booking_time = $3
+          AND (
+            (start_at, end_at) OVERLAPS ($2, $3)
+          )
         FOR UPDATE
       `;
-      const conflictRes = await client.query<any>(overlapQuery, [assignedStaffId, booking_date, booking_time]);
+      const conflictRes = await client.query<any>(overlapQuery, [assignedStaffId, startAt.toISOString(), endAt.toISOString()]);
 
       if (conflictRes.rows.length > 0) {
         await client.query('ROLLBACK');
@@ -464,11 +504,11 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     if (payment_option === 'full_online') {
       advanceAmountPaid = totalAmount;
       venueBalanceDue = 0;
-      paymentStatus = 'paid';
+      paymentStatus = 'payment_pending';
     } else if (payment_option === 'advance_online') {
       advanceAmountPaid = parseFloat((totalAmount * advancePct).toFixed(2));
       venueBalanceDue = parseFloat((totalAmount - advanceAmountPaid).toFixed(2));
-      paymentStatus = 'deposit_paid';
+      paymentStatus = 'payment_pending';
     } else {
       // pay_at_venue
       advanceAmountPaid = 0;
@@ -478,20 +518,23 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     // 5. Insert Booking Record
     const primaryServiceId = allServiceIds[0];
-    const initialStatus = (booking_mode === 'walk_in') ? 'in_service' : 'confirmed';
+    let initialStatus = (booking_mode === 'walk_in') ? 'in_service' : 'confirmed';
+    if (payment_option !== 'pay_at_venue' && booking_mode !== 'walk_in') {
+      initialStatus = 'pending_payment';
+    }
 
     const insertBookingQuery = `
       INSERT INTO bookings (
         business_id, branch_id, user_id, service_id, staff_id,
         booking_mode, home_service_address, travel_fee,
-        booking_date, booking_time, duration_mins,
+        booking_date, booking_time, start_at, end_at, duration_mins,
         status, payment_status, payment_option,
         service_amount, addons_amount, discount_amount, tax_amount,
         advance_amount_paid, venue_balance_due, total_amount,
         addons_json, coupon_code, notes,
         customer_name, customer_phone, customer_email
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29
       ) RETURNING *
     `;
 
@@ -506,6 +549,8 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
       travelFee,
       booking_date,
       booking_time,
+      startAt.toISOString(),
+      endAt.toISOString(),
       totalDurationMins,
       initialStatus,
       paymentStatus,
@@ -543,9 +588,11 @@ bookingsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
       );
     }
 
-    // 7. Ledger & Platform Commission Integration
+    // 7. Ledger & Platform Commission Integration (Only if fully collected now)
+    const isCollectedNow = booking_mode === 'walk_in';
     const collectedAmount = (payment_option === 'full_online') ? totalAmount : advanceAmountPaid;
-    if (collectedAmount > 0) {
+    
+    if (isCollectedNow && collectedAmount > 0) {
       const platformFee = parseFloat((collectedAmount * platformCommissionPct).toFixed(2));
       const netMerchant = parseFloat((collectedAmount - platformFee).toFixed(2));
 

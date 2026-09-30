@@ -62,6 +62,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   const [staffList, setStaffList] = useState<StaffItem[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<number | undefined>(undefined);
   const [selectedBranchId, setSelectedBranchId] = useState<number | undefined>(undefined);
+  const [isCartSummaryOpen, setIsCartSummaryOpen] = useState<boolean>(false);
 
   // Visit Type / Mode
   const [bookingMode, setBookingMode] = useState<'online' | 'home_service'>('online');
@@ -120,7 +121,14 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   const advancePct = parseFloat(String(activeBusiness?.advance_payment_percentage || '20.00')) / 100;
   const homeTravelFee = parseFloat(String(activeBusiness?.home_service_travel_fee || '150.00'));
 
-  // Preselect service & user profile
+  // Preselect main branch & user profile
+  useEffect(() => {
+    if (branches.length > 0 && selectedBranchId === undefined) {
+      const main = branches.find(b => b.is_main) || branches[0];
+      setSelectedBranchId(main.id);
+    }
+  }, [branches, selectedBranchId]);
+
   useEffect(() => {
     if (initialServiceId) {
       setSelectedServiceIds((prev) => (prev.includes(initialServiceId) ? prev : [...prev, initialServiceId]));
@@ -213,15 +221,14 @@ export const BookingPage: React.FC<BookingPageProps> = ({
     return () => clearInterval(interval);
   }, [activeHoldTimer]);
 
-  // Fetch Services, Packages & Staff Catalog
+  // Fetch Services & Packages Catalog
   useEffect(() => {
     async function loadData() {
       if (!activeBusiness) return;
       try {
-        const [srvRes, pkgRes, stfRes] = await Promise.all([
+        const [srvRes, pkgRes] = await Promise.all([
           fetch(`/api/services?businessId=${activeBusiness.id}`),
           fetch(`/api/packages?businessId=${activeBusiness.id}`),
-          fetch(`/api/staff?businessId=${activeBusiness.id}`),
         ]);
 
         if (srvRes.ok) {
@@ -236,17 +243,41 @@ export const BookingPage: React.FC<BookingPageProps> = ({
           const pkgData = await pkgRes.json();
           setPackages(pkgData.packages || []);
         }
-
-        if (stfRes.ok) {
-          const stfData = await stfRes.json();
-          setStaffList(stfData.staff || []);
-        }
       } catch (err) {
         console.error('Failed to load booking catalog:', err);
       }
     }
     loadData();
   }, [activeBusiness]);
+
+  // Fetch Staff based on selected branch
+  useEffect(() => {
+    async function fetchStaff() {
+      if (!activeBusiness) return;
+      try {
+        const staffParams = new URLSearchParams({ businessId: String(activeBusiness.id) });
+        if (selectedBranchId) staffParams.append('branchId', String(selectedBranchId));
+        
+        const res = await fetch(`/api/staff?${staffParams.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          const list = data.staff || [];
+          setStaffList(list);
+          
+          // If current selected staff is not in the new list, reset it
+          if (selectedStaffId && list.length > 0) {
+            const stillAvailable = list.some((s: StaffItem) => s.id === selectedStaffId);
+            if (!stillAvailable) {
+              setSelectedStaffId(undefined);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch staff by branch:', err);
+      }
+    }
+    fetchStaff();
+  }, [activeBusiness, selectedBranchId]);
 
   // Toggle multi-service selection
   const toggleService = (id: number) => {
@@ -479,9 +510,9 @@ export const BookingPage: React.FC<BookingPageProps> = ({
   // Stepper Labels Definition
   const stepsList = [
     { num: 1, label: 'Services' },
-    { num: 2, label: categoryConfig.specialistTerm.split('/')[0] },
-    { num: 3, label: 'Date & Slot' },
-    { num: 4, label: 'Visit Mode' },
+    { num: 2, label: 'Visit Mode' },
+    { num: 3, label: categoryConfig.specialistTerm.split('/')[0] },
+    { num: 4, label: 'Date & Slot' },
     { num: 5, label: 'Coupons' },
     { num: 6, label: 'Contact & OTP' },
     { num: 7, label: 'Payment' },
@@ -582,6 +613,133 @@ export const BookingPage: React.FC<BookingPageProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Sticky Bottom Cart Summary Bar (Interactive Gap Fix) */}
+      {currentStep > 1 && currentStep < 8 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 sm:pb-6 pointer-events-none">
+          <div className="max-w-xl mx-auto pointer-events-auto">
+            <div className="bg-[#1E2433] text-white rounded-3xl p-4 shadow-2xl border border-white/10 flex items-center justify-between gap-4">
+              <div 
+                className="flex-1 min-w-0 cursor-pointer"
+                onClick={() => setIsCartSummaryOpen(!isCartSummaryOpen)}
+              >
+                <div className="flex items-center gap-2">
+                  <Badge variant="accent" size="xs" className="bg-[#D66A78] border-none">
+                    {selectedServices.length + selectedPackages.length} Items
+                  </Badge>
+                  <span className="text-[10px] text-white/60 font-mono hidden sm:inline">
+                    {formatDuration(totalDurationMins)}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-lg font-bold font-mono">{currency}{finalTotalAmount.toFixed(2)}</span>
+                  <span className="text-[10px] text-white/50">Total Est.</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="border-white/20 text-white hover:bg-white/10 hidden sm:flex"
+                  onClick={() => setIsCartSummaryOpen(!isCartSummaryOpen)}
+                >
+                  {isCartSummaryOpen ? 'Hide Summary' : 'View Details'}
+                </Button>
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  className="bg-[#D66A78] hover:bg-[#C15869]"
+                  onClick={handleNextStep}
+                  rightIcon={isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                  disabled={isSubmitting}
+                >
+                  {currentStep === 7 ? 'Confirm Booking' : 'Next Step'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Expanded Detailed Drawer */}
+            {isCartSummaryOpen && (
+              <div className="bg-white border border-[#EAE5DF] rounded-t-3xl rounded-b-xl mt-2 p-5 shadow-2xl space-y-4 animate-slide-up max-h-[60vh] overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-serif font-bold text-[#1E2433]">Booking Summary</h3>
+                  <button onClick={() => setIsCartSummaryOpen(false)} className="p-1 hover:bg-stone-100 rounded-full">
+                    <X className="w-5 h-5 text-[#8491A5]" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    {selectedServices.map(s => (
+                      <div key={s.id} className="flex justify-between text-xs">
+                        <span className="text-[#566176]">{s.title}</span>
+                        <span className="font-mono text-[#1E2433]">{currency}{s.price}</span>
+                      </div>
+                    ))}
+                    {selectedPackages.map(p => (
+                      <div key={p.id} className="flex justify-between text-xs">
+                        <span className="text-[#566176]">[Pkg] {p.name}</span>
+                        <span className="font-mono text-[#1E2433]">{currency}{p.price}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-3 border-t border-[#EAE5DF] space-y-2 text-[11px] font-mono">
+                    {bookingMode === 'home_service' && (
+                      <div className="flex justify-between text-[#566176]">
+                        <span>Home Visit Fee:</span>
+                        <span>{currency}{homeTravelFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {appliedCoupon && (
+                      <div className="flex justify-between text-emerald-600 font-bold">
+                        <span>Coupon ({appliedCoupon.code}):</span>
+                        <span>-{currency}{discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-[#8491A5]">
+                      <span>Est. Tax ({activeBusiness?.tax_rate || '5'}%):</span>
+                      <span>{currency}{taxAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[#EAE5DF] flex justify-between items-baseline">
+                    <span className="font-serif font-bold text-[#1E2433]">Total Amount:</span>
+                    <span className="text-xl font-bold font-mono text-[#D66A78]">{currency}{finalTotalAmount.toFixed(2)}</span>
+                  </div>
+
+                  {paymentOption !== 'pay_at_venue' && (
+                    <div className="p-3 bg-[#FAF4EB] rounded-2xl border border-[#C89B53]/20">
+                      <div className="flex justify-between text-[11px] font-bold text-[#C89B53]">
+                        <span>Secure Deposit Now:</span>
+                        <span>{currency}{calculatedAdvanceAmount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1 pt-2">
+                    <div className="flex items-center gap-2 text-[10px] text-[#566176]">
+                      <Building2 className="w-3 h-3" />
+                      <span>{bookingMode === 'home_service' ? 'Home Service' : selectedBranch.name}</span>
+                    </div>
+                    {selectedStaff && (
+                      <div className="flex items-center gap-2 text-[10px] text-[#566176]">
+                        <User className="w-3 h-3" />
+                        <span>Specialist: {selectedStaff.name}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-[10px] text-[#566176]">
+                      <Calendar className="w-3 h-3" />
+                      <span>{selectedDate} @ {selectedTime}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Title */}
       <div className="text-center space-y-2">
@@ -729,7 +887,7 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                             </h4>
 
                             <p className="text-[11px] text-[#566176] line-clamp-2 leading-relaxed">
-                              {srv.description}
+                              {language === 'hi' && srv.description_hi ? srv.description_hi : srv.description}
                             </p>
 
                             <div className="pt-1 flex items-center gap-3 text-[10px] text-[#8491A5]">
@@ -893,19 +1051,108 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                   onClick={handleNextStep}
                   rightIcon={<ArrowRight className="w-4 h-4" />}
                 >
-                  Continue to {categoryConfig.specialistTerm.split('/')[0]}
+                  Continue to Visit Mode
                 </Button>
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 2: SPECIALIST / STAFF SELECTION */}
+        {/* STEP 2: VISIT MODE / LOCATION */}
         {currentStep === 2 && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="border-b border-[#EAE5DF] pb-3">
+              <h2 className="font-serif font-bold text-lg text-[#1E2433]">
+                STEP 2: Choose Visit Mode & Location
+              </h2>
+              <p className="text-xs text-[#566176]">
+                Visit our premium studio or request a private doorstep concierge session.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setBookingMode('online')}
+                className={`p-5 rounded-3xl border transition-all text-left flex items-start gap-4 ${
+                  bookingMode === 'online'
+                    ? 'border-[#D66A78] bg-[#FDF2F3]/60 ring-1 ring-[#D66A78]'
+                    : 'border-[#EAE5DF] bg-white hover:border-[#D66A78]/50'
+                }`}
+              >
+                <div className={`p-2.5 rounded-2xl ${bookingMode === 'online' ? 'bg-[#D66A78] text-white' : 'bg-stone-100 text-stone-400'}`}>
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1E2433] text-xs">Studio Appointment</h3>
+                  <p className="text-[11px] text-[#566176]">Visit our flagship or nearest location</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBookingMode('home_service')}
+                className={`p-5 rounded-3xl border transition-all text-left flex items-start gap-4 ${
+                  bookingMode === 'home_service'
+                    ? 'border-[#D66A78] bg-[#FDF2F3]/60 ring-1 ring-[#D66A78]'
+                    : 'border-[#EAE5DF] bg-white hover:border-[#D66A78]/50'
+                }`}
+              >
+                <div className={`p-2.5 rounded-2xl ${bookingMode === 'home_service' ? 'bg-[#D66A78] text-white' : 'bg-stone-100 text-stone-400'}`}>
+                  <Home className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1E2433] text-xs">Doorstep Home Concierge</h3>
+                  <p className="text-[11px] text-[#566176]">Specialist arrives at your doorstep</p>
+                </div>
+              </button>
+            </div>
+
+            {bookingMode === 'home_service' ? (
+              <div className="animate-fade-in">
+                <label className="block text-xs font-bold text-[#1E2433] mb-1">
+                  Complete Delivery Address & Landmark *
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={homeAddress}
+                  onChange={(e) => setHomeAddress(e.target.value)}
+                  placeholder="Flat/House No., Building, Street, Landmark, Pin code"
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#EAE5DF] rounded-xl text-xs"
+                />
+              </div>
+            ) : (
+              <div className="animate-fade-in">
+                <label className="block text-xs font-bold text-[#1E2433] mb-2">Select Outlet Branch</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {branches.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setSelectedBranchId(b.id)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        selectedBranchId === b.id
+                          ? 'border-[#D66A78] bg-[#FDF2F3]/60 ring-1 ring-[#D66A78]'
+                          : 'border-[#EAE5DF] bg-white'
+                      }`}
+                    >
+                      <span className="font-bold text-[#1E2433] text-xs block">{b.name}</span>
+                      <span className="text-[11px] text-[#566176]">{b.address}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* STEP 3: SPECIALIST / STAFF SELECTION */}
+        {currentStep === 3 && (
           <div className="space-y-4 animate-fade-in">
             <div className="border-b border-[#EAE5DF] pb-3">
               <h2 className="font-serif font-bold text-lg text-[#1E2433]">
-                STEP 2: Select Preferred {categoryConfig.specialistTerm}
+                STEP 3: Select Preferred {categoryConfig.specialistTerm}
               </h2>
               <p className="text-xs text-[#566176]">
                 Choose a specific master practitioner or select "Any Available" for the fastest time slots.
@@ -953,13 +1200,13 @@ export const BookingPage: React.FC<BookingPageProps> = ({
           </div>
         )}
 
-        {/* STEP 3: DATE + TIME SLOT */}
-        {currentStep === 3 && (
+        {/* STEP 4: DATE + TIME SLOT */}
+        {currentStep === 4 && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAE5DF] pb-3">
               <div>
                 <h2 className="font-serif font-bold text-lg text-[#1E2433]">
-                  STEP 3: Schedule Date & Time Slot
+                  STEP 4: Schedule Date & Time Slot
                 </h2>
                 <p className="text-xs text-[#566176]">
                   Real-time slot locking active • Guaranteed 0-wait booking
@@ -1035,89 +1282,6 @@ export const BookingPage: React.FC<BookingPageProps> = ({
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* STEP 4: VISIT TYPE & OUTLET LOCATION */}
-        {currentStep === 4 && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="border-b border-[#EAE5DF] pb-3">
-              <h2 className="font-serif font-bold text-lg text-[#1E2433]">
-                STEP 4: Select Service Visit Mode & Branch Outlet
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setBookingMode('online')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  bookingMode === 'online'
-                    ? 'border-[#D66A78] bg-[#FDF2F3]/60 ring-1 ring-[#D66A78]'
-                    : 'border-[#EAE5DF] bg-white'
-                }`}
-              >
-                <Building2 className="w-5 h-5 text-[#D66A78] mb-1.5" />
-                <h3 className="font-bold text-[#1E2433] text-xs">At Studio Outlet</h3>
-                <p className="text-[11px] text-[#566176]">Visit our luxury salon branch</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBookingMode('home_service')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  bookingMode === 'home_service'
-                    ? 'border-[#D66A78] bg-[#FDF2F3]/60 ring-1 ring-[#D66A78]'
-                    : 'border-[#EAE5DF] bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <Home className="w-5 h-5 text-[#D66A78] mb-1.5" />
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold font-mono">
-                    +{currency}{homeTravelFee} Travel
-                  </span>
-                </div>
-                <h3 className="font-bold text-[#1E2433] text-xs">Doorstep Home Concierge</h3>
-                <p className="text-[11px] text-[#566176]">Specialist arrives at your doorstep</p>
-              </button>
-            </div>
-
-            {bookingMode === 'home_service' ? (
-              <div>
-                <label className="block text-xs font-bold text-[#1E2433] mb-1">
-                  Complete Delivery Address & Landmark *
-                </label>
-                <textarea
-                  rows={2}
-                  required
-                  value={homeAddress}
-                  onChange={(e) => setHomeAddress(e.target.value)}
-                  placeholder="Flat/House No., Building, Street, Landmark, Pin code"
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#EAE5DF] rounded-xl text-xs"
-                />
-              </div>
-            ) : (
-              <div>
-                <label className="block text-xs font-bold text-[#1E2433] mb-2">Select Outlet Branch</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {branches.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => setSelectedBranchId(b.id)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all ${
-                        selectedBranchId === b.id
-                          ? 'border-[#D66A78] bg-[#FDF2F3]/60 ring-1 ring-[#D66A78]'
-                          : 'border-[#EAE5DF] bg-white'
-                      }`}
-                    >
-                      <span className="font-bold text-[#1E2433] text-xs block">{b.name}</span>
-                      <span className="text-[11px] text-[#566176]">{b.address}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
